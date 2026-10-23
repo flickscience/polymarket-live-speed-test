@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Polymarket Live Odds</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}header{padding:10px;border-bottom:1px solid #222}h1{font-size:18px;margin:0 0 10px}.sports{display:flex;gap:8px}.sports button,.back{background:#fff;border:1px solid #222;border-radius:3px;padding:9px 12px;font:inherit;color:#111}.sports button{font-size:22px;min-width:54px}.sports button:active,.sports button.selected{background:#eee}.status{font-size:12px;color:#444;margin-top:8px}.hidden{display:none!important}main{padding:8px;max-width:850px;margin:auto}.match-list{display:grid;gap:5px}.match{display:block;width:100%;text-align:left;border:1px solid #222;background:#fff;padding:12px;font-size:16px;color:#111}.match:active{background:#f3f3f3}.match small{display:block;color:#555;font-size:11px;margin-top:4px}.match-title{font-size:17px;font-weight:700;margin:10px 0}.grid{width:100%;border-collapse:collapse;table-layout:fixed}.grid th,.grid td{border:1px solid #222;padding:7px 5px}.grid th{font-size:13px;text-align:center}.grid th:first-child{width:100%;text-align:left}.grid td:first-child{font-weight:650;font-size:18px;overflow-wrap:anywhere}.grid td.quote{padding:4px;text-align:center}.team-price-row{display:grid;grid-template-columns:minmax(0,1fr);gap:5px}.team-name{text-align:left;font-weight:750;font-size:18px;padding:3px 2px}.quote-box{min-height:76px;display:flex;flex-direction:column;justify-content:center;align-items:center;border:1px solid #111;padding:5px 2px}.backbox{background:#eaf6ff}.laybox{background:#fff9df}.odds{font-size:clamp(42px,11vw,58px);line-height:1.02;font-weight:850;font-variant-numeric:tabular-nums}.liq{font-size:11px;margin-top:5px;white-space:nowrap}.meta{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;padding:10px 2px;border-top:1px solid #bbb;margin-top:10px}.meta strong{font-variant-numeric:tabular-nums}.hint{font-size:11px;color:#555;margin-top:8px;line-height:1.4}@media(max-width:390px){.grid th:first-child{width:100%}.grid td:first-child{font-size:18px}.grid th{font-size:12px}.grid th,.grid td{padding:5px 3px}.odds{font-size:42px}.liq{font-size:10px}}
+*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}header{padding:10px;border-bottom:1px solid #222}h1{font-size:18px;margin:0 0 10px}.sports{display:flex;gap:8px}.sports button,.back{background:#fff;border:1px solid #222;border-radius:3px;padding:9px 12px;font:inherit;color:#111}.sports button{font-size:22px;min-width:54px}.sports button:active,.sports button.selected{background:#eee}.status{font-size:12px;color:#444;margin-top:8px}.hidden{display:none!important}main{padding:8px;max-width:850px;margin:auto}.match-list{display:grid;gap:5px}.match{display:block;width:100%;text-align:left;border:1px solid #222;background:#fff;padding:12px;font-size:16px;color:#111}.match:active{background:#f3f3f3}.match small{display:block;color:#555;font-size:11px;margin-top:4px}.match-title{font-size:17px;font-weight:700;margin:10px 0}.grid{width:100%;border-collapse:collapse;table-layout:fixed}.grid th,.grid td{border:1px solid #222;padding:7px 5px}.grid th{font-size:13px;text-align:center}.grid th:first-child{width:40%;text-align:left}.grid th:nth-child(2),.grid th:nth-child(3){width:30%}.grid td:first-child{font-weight:650;font-size:18px;overflow-wrap:anywhere}.grid td.quote{padding:4px;text-align:center}.team-price-row{display:contents}.team-name{text-align:left;font-weight:750;font-size:18px;padding:3px 2px}.team-cell{font-weight:800;font-size:18px;overflow-wrap:anywhere}.side-label{font-size:14px;font-weight:800;margin-bottom:4px}.decimal{font-size:14px;font-weight:700;margin-top:5px}.price-side{min-width:0}.yes-no-grid{display:contents}.quote-box{min-height:76px;display:flex;flex-direction:column;justify-content:center;align-items:center;border:1px solid #111;padding:5px 2px}.backbox{background:#eaf6ff}.laybox{background:#fff9df}.odds{font-size:clamp(42px,11vw,58px);line-height:1.02;font-weight:850;font-variant-numeric:tabular-nums}.liq{font-size:11px;margin-top:5px;white-space:nowrap}.meta{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;padding:10px 2px;border-top:1px solid #bbb;margin-top:10px}.meta strong{font-variant-numeric:tabular-nums}.hint{font-size:11px;color:#555;margin-top:8px;line-height:1.4}@media(max-width:390px){.grid th:first-child{width:40%}.grid td:first-child{font-size:18px}.grid th{font-size:12px}.grid th,.grid td{padding:5px 3px}.odds{font-size:42px}.liq{font-size:10px}}
 </style></head><body>
 <header><h1>Polymarket · Live Odds</h1><nav class="sports" aria-label="Sports"><button data-sport="soccer" aria-label="Football / Soccer" title="Football / Soccer">⚽</button><button data-sport="cricket" aria-label="Cricket" title="Cricket">🏏</button><button data-sport="tennis" aria-label="Tennis" title="Tennis">🎾</button></nav><div id="status" class="status">Choose a sport to list live matches. No market WebSocket is opened until a match is selected.</div></header>
 <main><section id="matches-view" class="hidden"><button id="back" class="back">← Matches</button><div id="match-list" class="match-list" style="margin-top:8px"></div></section>
@@ -64,8 +64,8 @@ async function loadSport(sport){
  }catch(err){if(id!==state.requestId)return;setStatus("API error: "+err.message);$("match-list").innerHTML='<div class="hint">'+esc(err.message)+'</div>'}
 }
 function makeCell(row){
- const cell=(kind,token)=>'<div class="price-side"><div class="side-label">'+kind+'</div><div class="quote-box backbox" id="price-'+row.index+'-'+kind.toLowerCase()+'"><div class="odds" id="odds-'+row.index+'-'+kind.toLowerCase()+'">—</div><div class="decimal" id="decimal-'+row.index+'-'+kind.toLowerCase()+'"></div><div class="liq" id="price-meta-'+row.index+'-'+kind.toLowerCase()+'">Waiting for packet…</div></div></div>';
- return '<td class="quote"><div class="team-price-row"><div class="team-name">'+esc(row.label)+'</div><div class="yes-no-grid">'+cell('Yes',row.yesToken||row.tokenId)+cell('No',row.noToken)+'</div></div></td>';
+ const cell=kind=>'<td class="quote"><div class="price-side"><div class="side-label">'+kind+'</div><div class="quote-box backbox" id="price-'+row.index+'-'+kind.toLowerCase()+'"><div class="odds" id="odds-'+row.index+'-'+kind.toLowerCase()+'"></div><div class="decimal" id="decimal-'+row.index+'-'+kind.toLowerCase()+'"></div><div class="liq" id="price-meta-'+row.index+'-'+kind.toLowerCase()+'"></div></div></div></td>';
+ return cell('Yes')+cell('No');
 }
 function renderSelected(event){
  closeMarketSocket();state.selectedEvent=event;
@@ -74,7 +74,7 @@ function renderSelected(event){
  $("matches-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("odds-view").classList.remove("hidden");
  $("match-title").textContent=event.title;
  if(state.rows.length!==2){$("odds-rows").innerHTML='<tr><td colspan="2">Polymarket did not expose exactly two identifiable moneyline team tokens for this event.</td></tr>';setStatus("No reliable two-team moneyline mapping; avoiding unrelated markets.");$("socket-state").textContent="off";return}
- $("odds-rows").innerHTML=state.rows.map(r=>'<tr>'+'<td class="team-cell">'+esc(r.label)+'</td>'+'<td class="quote">'+makeCell(r).match(/<div class="yes-no-grid">([\s\S]*?)<\/div><\/div><\/td>/)[1].replace(/<div class="price-side">/g,'<div class="price-side">')+'</td>'+'</tr>').join("");
+ $("odds-rows").innerHTML=state.rows.map(r=>'<tr><td class="team-cell">'+esc(r.label)+'</td>'+makeCell(r)+'</tr>').join("");
  $("packets").textContent="0";$("last-packet").textContent="—";$("server-time").textContent="—";$("socket-state").textContent="connecting";
  connectSelected([...new Set(state.rows.flatMap(r=>[r.yesToken||r.tokenId,r.noToken]).filter(Boolean))]);
 }
@@ -84,9 +84,16 @@ function fmtOdds(price){return price>0&&price<=1?(1/price).toFixed(2):"—"}
 function fmtSize(size){return size!=null&&Number.isFinite(size)?Number(size).toLocaleString(undefined,{maximumFractionDigits:2}):"—"}
 function updateRows(){
  for(const r of state.rows){
-  const q=top(r.tokenId),el=$("odds-"+r.index),meta=$("price-meta-"+r.index);
-  if(el)el.textContent=q.ask==null?"—":q.ask.toFixed(4);
-  if(meta)meta.textContent=q.ask==null?"No best ask":"Original ask price";
+  for(const kind of ["yes","no"]){
+   const token=kind==="yes"?(r.yesToken||r.tokenId):r.noToken;
+   const q=token?top(token):{ask:null};
+   const el=$("odds-"+r.index+"-"+kind),dec=$("decimal-"+r.index+"-"+kind),meta=$("price-meta-"+r.index+"-"+kind);
+   if(!el||!dec||!meta)continue;
+   if(q.ask==null){el.textContent="";dec.textContent="";meta.textContent="";continue}
+   el.textContent=Math.round(q.ask*100)+"¢";
+   dec.textContent="Decimal "+(1/q.ask).toFixed(2);
+   meta.textContent="Best ask";
+  }
  }
 }
 function processPacket(payload){
