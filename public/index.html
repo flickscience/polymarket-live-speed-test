@@ -12,12 +12,12 @@
 (function(){
 "use strict";
 const $=id=>document.getElementById(id);
-const state={sport:"",events:[],socket:null,rows:[],books:Object.create(null),packetCount:0,lastPacket:0,requestId:0,heartbeat:null};
+const state={sport:"",events:[],socket:null,rows:[],books:Object.create(null),packetCount:0,lastPacket:0,requestId:0,heartbeat:null,connectTimeout:null,reconnectTimer:null,selectedEvent:null};
 function arr(v){if(Array.isArray(v))return v;if(typeof v==="string"){try{const x=JSON.parse(v);return Array.isArray(x)?x:[]}catch(_){}}return []}
 function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function num(v){if(v===null||v===undefined||v==="")return null;const n=Number(v);return Number.isFinite(n)?n:null}
 function setStatus(s){$("status").textContent=s}
-function closeMarketSocket(){if(state.heartbeat){clearInterval(state.heartbeat);state.heartbeat=null}if(state.socket){state.socket.onopen=state.socket.onmessage=state.socket.onerror=state.socket.onclose=null;try{state.socket.close(1000,"match changed")}catch(_){}}state.socket=null;$("socket-state").textContent="off"}
+function closeMarketSocket(){if(state.heartbeat){clearInterval(state.heartbeat);state.heartbeat=null}if(state.connectTimeout){clearTimeout(state.connectTimeout);state.connectTimeout=null}if(state.reconnectTimer){clearTimeout(state.reconnectTimer);state.reconnectTimer=null}if(state.socket){state.socket.onopen=state.socket.onmessage=state.socket.onerror=state.socket.onclose=null;try{state.socket.close(1000,"match changed")}catch(_){}}state.socket=null;$("socket-state").textContent="off"}
 function showMatches(){closeMarketSocket();$("odds-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("matches-view").classList.remove("hidden")}
 function marketLabel(m,event){let q=String(m.question||m.slug||"").trim();q=q.replace(/^will\s+/i,"").replace(/\s+(win|to win|win the match)\??$/i,"").replace(/\?$/,"").trim();if(!q||q.toLowerCase()===String(event.title||"").toLowerCase())q=String(m.slug||q||"Outcome");return q}
 function getRows(event){
@@ -63,6 +63,7 @@ function makeCell(row){
  return '<td class="quote"><div class="quote-box backbox" id="price-'+row.index+'"><div class="odds" id="odds-'+row.index+'">—</div><div class="liq" id="price-meta-'+row.index+'">Waiting for price…</div></div></td>';
 }
 function renderSelected(event){
+ closeMarketSocket();state.selectedEvent=event;
  state.rows=getRows(event).map((r,index)=>({...r,index}));
  state.books=Object.create(null);state.packetCount=0;state.lastPacket=0;
  $("matches-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("odds-view").classList.remove("hidden");
@@ -96,14 +97,15 @@ function processPacket(payload){
  }
  state.packetCount++;state.lastPacket=Date.now();$("packets").textContent=String(state.packetCount);$("last-packet").textContent=new Date(state.lastPacket).toLocaleTimeString();const ts=messages.map(m=>num(m.timestamp)).find(v=>v!==null);if(ts!==undefined&&ts!==null)$("server-time").textContent=new Date(ts<1e12?ts*1000:ts).toLocaleTimeString();if(changed)updateRows();
 }
-function connectSelected(tokens){
+function connectSelected(tokens,attempt=0){
  closeMarketSocket();if(!tokens.length){$("socket-state").textContent="no tokens";setStatus("No moneyline tokens found for this match.");return}
  const ws=new WebSocket("wss://ws-subscriptions-clob.polymarket.com/ws/market");state.socket=ws;
  if(state.heartbeat){clearInterval(state.heartbeat);state.heartbeat=null}
- ws.onopen=()=>{if(state.socket!==ws)return;$("socket-state").textContent="connected · "+tokens.length+" tokens";ws.send(JSON.stringify({assets_ids:tokens,type:"market"}));state.heartbeat=setInterval(()=>{if(state.socket===ws&&ws.readyState===WebSocket.OPEN)ws.send("PING")},10000);setStatus("Moneyline only · subscribed to "+tokens.length+" tokens.")};
+ ws.onopen=()=>{if(state.socket!==ws)return;if(state.connectTimeout){clearTimeout(state.connectTimeout);state.connectTimeout=null}if(state.reconnectTimer){clearTimeout(state.reconnectTimer);state.reconnectTimer=null}$("socket-state").textContent="connected · "+tokens.length+" tokens";ws.send(JSON.stringify({assets_ids:tokens,type:"market"}));state.heartbeat=setInterval(()=>{if(state.socket===ws&&ws.readyState===WebSocket.OPEN)ws.send("PING")},10000);setStatus("Moneyline only · subscribed to "+tokens.length+" tokens.")};
  ws.onmessage=ev=>{if(state.socket!==ws)return;if(ev.data==="PONG"||ev.data==="pong")return;let data;try{data=JSON.parse(ev.data)}catch(_){return}processPacket(data)};
- ws.onerror=()=>{if(state.socket===ws){$("socket-state").textContent="error";setStatus("Market WebSocket error; reconnect by reselecting the match.")}};
- ws.onclose=()=>{if(state.heartbeat){clearInterval(state.heartbeat);state.heartbeat=null}if(state.socket===ws){$("socket-state").textContent="closed";setStatus("Market WebSocket closed. Re-select the match to reconnect.")}};
+ state.connectTimeout=setTimeout(()=>{if(state.socket===ws&&ws.readyState!==WebSocket.OPEN){$("socket-state").textContent="reconnecting";try{ws.close()}catch(_){}}},8000);
+ ws.onerror=()=>{if(state.socket===ws){$("socket-state").textContent="connection error"}};
+ ws.onclose=()=>{if(state.heartbeat){clearInterval(state.heartbeat);state.heartbeat=null}if(state.connectTimeout){clearTimeout(state.connectTimeout);state.connectTimeout=null}if(state.socket===ws){state.socket=null;if(state.selectedEvent&&attempt<5){$("socket-state").textContent="reconnecting";const delay=Math.min(1000*Math.pow(2,attempt),10000);state.reconnectTimer=setTimeout(()=>{if(state.selectedEvent)connectSelected(tokens,attempt+1)},delay);setStatus("Market feed disconnected · reconnecting automatically.")}else{$("socket-state").textContent="closed";setStatus("Market feed disconnected. Select the match again to retry.")}}};
 }
 document.querySelectorAll("[data-sport]").forEach(b=>b.addEventListener("click",()=>loadSport(b.dataset.sport)));
 $("match-list").addEventListener("click",e=>{const b=e.target.closest("button[data-index]");if(!b)return;const event=state.events[Number(b.dataset.index)];if(event)renderSelected(event)});
