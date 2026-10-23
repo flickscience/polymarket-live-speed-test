@@ -22,10 +22,10 @@ function showMatches(){closeMarketSocket();$("odds-view").classList.add("hidden"
 function marketLabel(m,event){let q=String(m.question||m.slug||"").trim();q=q.replace(/^will\s+/i,"").replace(/\s+(win|to win|win the match)\??$/i,"").replace(/\?$/,"").trim();if(!q||q.toLowerCase()===String(event.title||"").toLowerCase())q=String(m.slug||q||"Outcome");return q}
 function getRows(event){
  const markets=arr(event.markets), rows=[];
- const title=String(event.title||"").replace(/^.*?:\\s*/,"").replace(/\\s+-\\s+(More Markets|Exact Score|Half-time Result|Halftime Result|Correct Score).*$/i,"").trim();
- const teams=title.split(/\\s+(?:vs\\.?|v\\.?|versus)\\s+/i).map(x=>x.trim()).filter(Boolean);
+ const title=String(event.title||"").replace(/^.*?:\s*/,"").replace(/\s+-\s+(More Markets|Exact Score|Half-time Result|Halftime Result|Correct Score).*$/i,"").trim();
+ const teams=title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map(x=>x.trim()).filter(Boolean);
  if(teams.length!==2)return [];
- const norm=s=>String(s||"").toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+ const norm=s=>String(s||"").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
  const names=teams.map(norm);
  const makeRow=label=>({label,yesToken:"",noToken:"",tokenId:"",market:null,index:rows.length});
  for(const team of teams)rows.push(makeRow(team));
@@ -43,11 +43,11 @@ function getRows(event){
  if(!rows.some(r=>r.yesToken||r.noToken)){
   for(const m of markets){
    const q=String(m.question||"")+" "+String(m.selection||"")+" "+String(m.slug||""), nq=" "+norm(q)+" ";
-   if(/\\b(draw|tie)\\b/i.test(q)&&/\\b(win|winner|match result|moneyline)\\b/i.test(q)){if(!drawRow){drawRow=makeRow("Draw");rows.push(drawRow);}assignYesNo(drawRow,m);continue;}
+   if(/\b(draw|tie)\b/i.test(q)&&/\b(win|winner|match result|moneyline)\b/i.test(q)){if(!drawRow){drawRow=makeRow("Draw");rows.push(drawRow);}assignYesNo(drawRow,m);continue;}
    const hit=names.map((n,i)=>({n,i})).filter(x=>x.n&&nq.includes(" "+x.n+" "));
    if(hit.length!==1)continue;
-   if(!/\\b(win|winner|moneyline|match result|to win)\\b/i.test(q))continue;
-   if(/\\b(over|under|total|handicap|spread|correct score|exact score|both teams|half.?time|first half|corners|cards|sets|games)\\b/i.test(q))continue;
+   if(!/\b(win|winner|moneyline|match result|to win)\b/i.test(q))continue;
+   if(/\b(over|under|total|handicap|spread|correct score|exact score|both teams|half.?time|first half|corners|cards|sets|games)\b/i.test(q))continue;
    assignYesNo(rows[hit[0].i],m);
   }
  }
