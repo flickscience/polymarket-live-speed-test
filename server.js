@@ -252,10 +252,11 @@ function sendSubscription(ids) {
   if (!ids.length || upstream?.readyState !== WebSocket.OPEN) return;
 
   for (let i = 0; i < ids.length; i += 300) {
+    const batch = ids.slice(i, i + 300);
+    console.log("[clob-ws] subscribing tokenCount=" + batch.length);
     upstream.send(JSON.stringify({
-      assets_ids: ids.slice(i, i + 300),
-      type: "market",
-      initial_dump: true
+      assets_ids: batch,
+      type: "market"
     }));
   }
 }
@@ -292,12 +293,16 @@ function connectUpstream() {
     if (message === "PONG" || message === "pong") return;
 
     try {
+      const data = JSON.parse(message);
+      console.log("[clob-ws] market packet type=" + (Array.isArray(data) ? "array" : (data?.event_type || data?.type || "unknown")));
       sendAll({
         kind: "market",
-        data: JSON.parse(message),
+        data,
         receivedAt: Date.now()
       });
-    } catch {}
+    } catch (error) {
+      console.warn("[clob-ws] ignored non-JSON message");
+    }
   });
 
   upstream.on("close", (code, reason) => {
@@ -341,6 +346,7 @@ browserWss.on("connection", ws => {
         .filter(t => t && !subscribedTokens.has(t));
 
       fresh.forEach(t => subscribedTokens.add(t));
+      console.log("[browser-ws] tokens received=" + msg.tokens.length + " fresh=" + fresh.length + " total=" + subscribedTokens.size);
 
       sendSubscription(fresh);
     } catch {}
