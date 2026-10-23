@@ -42,18 +42,25 @@ function normalizeEvent(e) {
   };
 }
 async function fetchLiveEvents(sport) {
-  const url=new URL("/events",GAMMA);
-  for(const [k,v] of Object.entries({active:"true",closed:"false",limit:"100",order:"volume24hr",ascending:"false"})) url.searchParams.set(k,v);
-  const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
-  if(!response.ok) throw new Error("Gamma API HTTP "+response.status);
-  const data=await response.json();if(!Array.isArray(data))throw new Error("Gamma API returned unexpected response");
+  const all=[];
+  const pageSize=100;
+  // Paginate active events so cricket results aren't limited to the first 100 by volume.
+  for(let offset=0;offset<1000;offset+=pageSize){
+    const url=new URL("/events",GAMMA);
+    for(const [k,v] of Object.entries({active:"true",closed:"false",limit:String(pageSize),offset:String(offset),order:"volume24hr",ascending:"false"})) url.searchParams.set(k,v);
+    const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
+    if(!response.ok) throw new Error("Gamma API HTTP "+response.status);
+    const data=await response.json();if(!Array.isArray(data))throw new Error("Gamma API returned unexpected response");
+    all.push(...data);
+    if(data.length<pageSize)break;
+  }
   const seen=new Set();
-  return data.filter(e=>{
+  return all.filter(e=>{
     const id=String(e?.id||e?.slug||"");if(!id||seen.has(id))return false;seen.add(id);
     const title=String(e.title||"").trim();
     const isChildMarket=/\s-\s*(more markets|exact score|correct score|half.?time result|halftime result|first half|player props|corners|cards)\s*$/i.test(title);
     const isHeadToHead=/\b(vs\.?|v\.?|versus)\b/i.test(title);
-    return e.closed!==true&&e.active!==false&&!isChildMarket&&isHeadToHead&&isSport(e,sport);
+    return e.closed!==true&&e.active!==false&&!isChildMarket&&(sport==="cricket"||isHeadToHead)&&isSport(e,sport);
   }).map(normalizeEvent).filter(e=>e.markets.length);
 }
 app.get("/api/events",async(req,res)=>{
@@ -63,7 +70,7 @@ app.get("/api/events",async(req,res)=>{
   try{
     const events=await fetchLiveEvents(sport);
     console.log("[events] sport="+sport+" count="+events.length+" durationMs="+(Date.now()-started));
-    res.set("Cache-Control","no-store").json({sport,events,liveCount:events.length,checkedAt:Date.now(),source:"Gamma live=true"});
+    res.set("Cache-Control","no-store").json({sport,events,liveCount:events.length,checkedAt:Date.now(),source:"Gamma active events, paginated"});
   }catch(error){
     const detail=error?.name==="TimeoutError"||error?.name==="AbortError"?"Gamma API timed out after "+TIMEOUT_MS+"ms":String(error?.message||error);
     console.error("[events] sport="+sport+" failed after "+(Date.now()-started)+"ms: "+detail);
