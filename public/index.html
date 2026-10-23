@@ -68,7 +68,7 @@ async function loadSport(sport){
  }catch(err){if(id!==state.requestId)return;setStatus("API error: "+err.message);$("match-list").innerHTML='<div class="hint">'+esc(err.message)+'</div>'}
 }
 function makeCell(row){
- const cell=kind=>'<td class="quote"><div class="price-side"><div class="side-label">'+kind+'</div><div class="quote-box backbox"><div class="decimal main-decimal" id="price-decimal-'+row.index+'-'+kind.toLowerCase()+'">—</div><div class="main-price-label">Price</div><div class="main-price" id="price-'+row.index+'-'+kind.toLowerCase()+'"></div><div class="quote-pair"><div class="quote-part"><label>Bid</label><div class="odds" id="bid-'+row.index+'-'+kind.toLowerCase()+'">—</div></div><div class="quote-part"><label>Ask</label><div class="odds" id="ask-'+row.index+'-'+kind.toLowerCase()+'">—</div></div></div><div class="liq" id="price-meta-'+row.index+'-'+kind.toLowerCase()+'"></div></div></div></td>';
+ const cell=kind=>'<td class="quote"><div class="price-side"><div class="side-label">'+kind+'</div><div class="quote-box backbox"><div class="decimal main-decimal" id="price-decimal-'+row.index+'-'+kind.toLowerCase()+'">—</div><div class="main-price-label">Price</div><div class="main-price" id="price-'+row.index+'-'+kind.toLowerCase()+'">—</div><div class="quote-pair"><div class="quote-part"><label>Bid</label><div class="odds" id="bid-'+row.index+'-'+kind.toLowerCase()+'">—</div></div><div class="quote-part"><label>Ask</label><div class="odds" id="ask-'+row.index+'-'+kind.toLowerCase()+'">—</div></div></div><div class="liq" id="price-meta-'+row.index+'-'+kind.toLowerCase()+'"></div></div></div></td>';
  return cell('Yes')+cell('No');
 }
 function renderSelected(event){
