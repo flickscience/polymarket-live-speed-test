@@ -16,113 +16,205 @@ main{padding:6px;max-width:1250px;margin:auto}.event{border-bottom:1px solid #cc
 <main id="root"><div class="empty">Loading…</div></main>
 <div class="note">Read-only speed test. Binary YES BACK-equivalent odds = 1 ÷ YES best ask; NO LAY-equivalent odds = 1 ÷ NO best ask. Multi-outcome markets retain their real outcome labels and are not incorrectly mapped to YES/NO. YES and NO are separate token books, not a bookmaker's BACK/LAY quote. Top ask size and top-five depth are indicative, not guaranteed fills. Public API coverage and network latency can limit completeness. No orders are placed.</div>
 <script>
-window.addEventListener("error", function(event) {
-  var status = document.getElementById("status");
-  if (status) status.textContent = "Script error: " + (event.message || "unknown") + " (line " + (event.lineno || "?") + ")";
-});
-window.addEventListener("unhandledrejection", function(event) {
-  var status = document.getElementById("status");
-  if (status) status.textContent = "Async error: " + String(event.reason);
-});
-document.addEventListener("DOMContentLoaded", function() {
-  var status = document.getElementById("status");
-  if (status) status.textContent = "Page loaded; starting dashboard script…";
-});
-</script>
-<script>
- window.onerror = function(message, source, line) {
-  document.getElementById("status").textContent =
-    "JavaScript error: " + message + " (line " + line + ")";
-};
- window.addEventListener("error", function(event) {
-  const status = document.getElementById("status");
-  if (status) {
-    status.textContent =
-      "JavaScript error: " + event.message +
-      " | Line: " + event.lineno;
-  }
-});
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var sport = "soccer", events = [], ws = null, retryTimer = null;
+  var books = Object.create(null), lastPacket = 0, packetCount = 0;
 
-window.addEventListener("unhandledrejection", function(event) {
-  const status = document.getElementById("status");
-  if (status) {
-    status.textContent =
-      "Async error: " + String(event.reason);
+  function setStatus(message) { $("status").textContent = message; }
+  function safeNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    var number = Number(value);
+    return Number.isFinite(number) ? number : null;
   }
-});
-const $=id=>document.getElementById(id);let sport="soccer",events=[],ws,retry,latestPacket=0,queued=false;
-const books=new Map(), tokenMeta=new Map();
-const arr=v=>Array.isArray(v)?v:[];
-const n=v=>{let x=Number(v);return Number.isFinite(x)?x:null};
-const f=v=>v==null?"—":Number(v).toLocaleString(undefined,{maximumFractionDigits:4});
-const o=p=>p>0&&p<=1?(1/p).toFixed(2):"—";
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function status(t){$("status").textContent=t}
-function book(id){if(!books.has(id))books.set(id,{bids:new Map(),asks:new Map(),last:null,at:0});return books.get(id)}
-function levels(map,desc){return [...map].map(([p,s])=>({p:+p,s})).filter(x=>x.p>0&&x.s>0).sort((a,b)=>desc?b.p-a.p:a.p-b.p)}
-function top(id){if(!id)return {bid:null,ask:null,depth:null,at:0};let b=book(id),bs=levels(b.bids,true),as=levels(b.asks,false);return {bid:bs[0]||null,ask:as[0]||null,depth:as.length?as.slice(0,5).reduce((v,x)=>v+x.p*x.s,0):null,at:b.at}}
-function updateSnapshot(m){let id=String(m.asset_id||"");if(!id)return;let b=book(id);b.bids.clear();b.asks.clear();for(let x of arr(m.bids)){let p=n(x.price),s=n(x.size);if(p!==null&&s>0)b.bids.set(String(p),s)}for(let x of arr(m.asks)){let p=n(x.price),s=n(x.size);if(p!==null&&s>0)b.asks.set(String(p),s)}b.at=Date.now();latestPacket=b.at}
-function updateChange(x){let id=String(x.asset_id||"");if(!id)return;let b=book(id),p=n(x.price),s=n(x.size);if(p!==null&&s!==null){let map=String(x.side).toUpperCase()==="BUY"?b.bids:b.asks;if(s<=0)map.delete(String(p));else map.set(String(p),s)}b.at=Date.now();latestPacket=b.at}
-function process(data){for(let m of (Array.isArray(data)?data:[data])){if(!m)continue;if(m.event_type==="book")updateSnapshot(m);else if(m.event_type==="price_change")for(let x of arr(m.price_changes))updateChange(x);else if(m.event_type==="last_trade_price"){book(String(m.asset_id)).last=n(m.price);book(String(m.asset_id)).at=Date.now();latestPacket=Date.now()}}if(!queued){queued=true;requestAnimationFrame(()=>{queued=false;render();$("latency").textContent="Dashboard render: "+new Date().toLocaleTimeString()})}}
-function tokens(){return [...new Set(events.flatMap(e=>e.markets.flatMap(m=>m.outcomes.map(o=>o.tokenId).filter(Boolean))))]}
-function subscribe(){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({kind:"subscribe",tokens:tokens()}))}
-function connect(){try{ws=new WebSocket(`${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws`)}catch(e){$("feed").textContent="Feed error: "+e.message;clearTimeout(retry);retry=setTimeout(connect,3000);return}ws.onopen=()=>{$("feed").textContent="Feed connected";subscribe()};ws.onmessage=ev=>{let x;try{x=JSON.parse(ev.data)}catch{return}if(x.kind==="feed"){$("feed").textContent="Feed "+x.status;return}if(x.kind==="market"){process(x.data);$("packet").textContent="Last feed packet: "+new Date(x.receivedAt||Date.now()).toLocaleTimeString()}};ws.onclose=()=>{$("feed").textContent="Feed reconnecting";clearTimeout(retry);retry=setTimeout(connect,900)};ws.onerror=()=>{$("feed").textContent="Feed error"}}
-function teamNames(title){let a=String(title||"").split(/\s+(?:vs?\.?|versus|@)\s+/i);return a.length===2?[a[0],a[1]]:[title||"Match",""]}
-function binaryRow(m){let y=top(m.yesToken),no=top(m.noToken),ys=y.ask?.p??null,ns=no.ask?.p??null,yspr=y.bid&&y.ask?y.ask.p-y.bid.p:null,nspr=no.bid&&no.ask?no.ask.p-no.bid.p:null;return `<tr><td>${esc(m.question)}<span class="sub">Vol ${f(m.volume)} · Reported liquidity ${f(m.liquidity)}</span></td><td class="yes">${f(ys)}<span class="sub">Bid ${f(y.bid?.p)} / ask ${f(y.ask?.p)}</span></td><td class="odds yes">${o(ys)}<span class="sub">Ask size ${f(y.ask?.s)}</span></td><td class="no">${f(ns)}<span class="sub">Bid ${f(no.bid?.p)} / ask ${f(no.ask?.p)}</span></td><td class="odds no">${o(ns)}<span class="sub">Ask size ${f(no.ask?.s)}</span></td><td>${f(yspr)}<span class="sub">YES spread</span></td><td>${f(nspr)}<span class="sub">NO spread</span></td><td>${f(y.depth)}<span class="sub">YES top-5 ask depth</span></td><td>${f(no.depth)}<span class="sub">NO top-5 ask depth</span></td></tr>`}
-function outcomeRows(m){return m.outcomes.map(out=>{let b=top(out.tokenId);return `<tr><td>${esc(m.question)}<span class="sub">Outcome: ${esc(out.label)} · Vol ${f(m.volume)} · Reported liquidity ${f(m.liquidity)}</span></td><td class="yes">${f(b.ask?.p)}<span class="sub">Bid ${f(b.bid?.p)} / ask ${f(b.ask?.p)}</span></td><td class="odds yes">${o(b.ask?.p)}<span class="sub">Buy-equivalent odds · ask size ${f(b.ask?.s)}</span></td><td colspan="5" style="text-align:left">Multi-outcome market — no synthetic NO/LAY price</td><td>${f(b.depth)}</td></tr>`}).join("")}
-function render(){let q=$("filter").value.trim().toLowerCase(),show=events.filter(e=>!q||e.title.toLowerCase().includes(q)||e.markets.some(m=>m.question.toLowerCase().includes(q)||m.outcomes.some(o=>o.label.toLowerCase().includes(q))));$("eventsCount").textContent=`Events: ${show.length} · markets: ${show.reduce((a,e)=>a+e.markets.length,0)}`;if(!show.length){$("root").innerHTML='<div class="empty">No matching events discovered.</div>';return}$("root").innerHTML=show.map(e=>{let t=teamNames(e.title);return `<section class="event"><div class="eventhead"><div><div class="eventtitle">${esc(e.title)}</div><div class="eventmeta">${esc(e.slug)} · ${e.markets.length} markets</div></div><span class="${e.live?'live':''}">${e.live?'LIVE FLAG':'ACTIVE'}</span></div><div class="teams"><span>${esc(t[0])}</span><span>vs</span><span>${esc(t[1])}</span></div><div class="wrap"><table><thead><tr><th>Prop / outcome</th><th>Price</th><th>Decimal odds</th><th>Bid / ask</th><th>Depth</th><th>Extra</th><th></th><th></th><th></th></tr></thead><tbody>${e.markets.map(m=>m.marketType==="binary"?binaryRow(m):outcomeRows(m)).join("")}</tbody></table></div></section>`}).join("")}
-async function load(){
-  status("Discovering active "+sport+" markets…");
-  $("root").innerHTML='<div class="empty">Loading markets…</div>';
-
-  try {
-    const r = await fetch("/api/events?sport="+encodeURIComponent(sport), {
-      cache: "no-store"
+  function esc(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
-
-    const body = await r.text();
-    let d;
-
-    try {
-      d = JSON.parse(body);
-    } catch {
-      throw Error("API returned invalid JSON: " + body.slice(0,150));
+  }
+  function arr(value) { return Array.isArray(value) ? value : []; }
+  function getBook(token) {
+    if (!books[token]) books[token] = {bids:{}, asks:{}, at:0};
+    return books[token];
+  }
+  function fmt(value) { return value == null ? "—" : Number(value).toFixed(4); }
+  function odds(value) { return value > 0 && value <= 1 ? (1 / value).toFixed(2) : "—"; }
+  function tokenList() {
+    var ids = [];
+    events.forEach(function (event) {
+      arr(event.markets).forEach(function (market) {
+        arr(market.outcomes).forEach(function (outcome) {
+          if (outcome.tokenId) ids.push(String(outcome.tokenId));
+        });
+      });
+    });
+    return Array.from(new Set(ids));
+  }
+  function subscribe() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      var ids = tokenList();
+      $("feed").textContent = "Feed connected · subscribing " + ids.length + " tokens";
+      ws.send(JSON.stringify({kind:"subscribe", tokens:ids}));
     }
-
-    if (!r.ok) {
-      throw Error(d.detail || d.error || ("API " + r.status));
+  }
+  function top(token) {
+    if (!token) return {bid:null, ask:null};
+    var book = getBook(token);
+    var bids = Object.keys(book.bids).map(Number).filter(function (p) { return p > 0; }).sort(function(a,b){return b-a;});
+    var asks = Object.keys(book.asks).map(Number).filter(function (p) { return p > 0; }).sort(function(a,b){return a-b;});
+    return {bid:bids.length ? bids[0] : null, ask:asks.length ? asks[0] : null};
+  }
+  function render() {
+    var query = $("filter").value.trim().toLowerCase();
+    var shown = events.filter(function (event) {
+      return !query || String(event.title).toLowerCase().indexOf(query) >= 0 ||
+        arr(event.markets).some(function (market) {
+          return String(market.question).toLowerCase().indexOf(query) >= 0 ||
+            arr(market.outcomes).some(function (outcome) {
+              return String(outcome.label).toLowerCase().indexOf(query) >= 0;
+            });
+        });
+    });
+    $("eventsCount").textContent = "Events: " + shown.length + " · markets: " +
+      shown.reduce(function(total, event){return total + arr(event.markets).length;}, 0);
+    if (!shown.length) {
+      $("root").innerHTML = '<div class="empty">No matching events returned for this sport. Try another sport or refresh.</div>';
+      return;
     }
-
-    if (!Array.isArray(d.events)) {
-      throw Error("API response is missing the events array");
-    }
-
-    events = d.events;
-    books.clear();
-    tokenMeta.clear();
-
-    for (const e of events) {
-      for (const m of (e.markets || [])) {
-        for (const out of (m.outcomes || [])) {
-          if (out.tokenId) {
-            tokenMeta.set(out.tokenId, {e,m,out});
-          }
+    $("root").innerHTML = shown.map(function(event) {
+      var rows = arr(event.markets).map(function(market) {
+        var outs = arr(market.outcomes);
+        return outs.map(function(outcome) {
+          var quote = top(outcome.tokenId);
+          return '<tr><td>' + esc(market.question) + '<span class="sub">Outcome: ' + esc(outcome.label) +
+            ' · Volume ' + esc(market.volume == null ? "—" : market.volume) + '</span></td>' +
+            '<td>' + fmt(quote.bid) + '</td><td>' + fmt(quote.ask) + '</td><td class="odds">' +
+            odds(quote.ask) + '</td><td>' + (getBook(outcome.tokenId).at ? new Date(getBook(outcome.tokenId).at).toLocaleTimeString() : "—") + '</td></tr>';
+        }).join("");
+      }).join("");
+      return '<section class="event"><div class="eventhead"><div><div class="eventtitle">' +
+        esc(event.title) + '</div><div class="eventmeta">' + esc(event.slug || "") +
+        ' · ' + arr(event.markets).length + ' markets</div></div><span class="live">' +
+        (event.live ? "LIVE" : "ACTIVE") + '</span></div><div class="wrap"><table><thead><tr>' +
+        '<th>Market / outcome</th><th>Best bid</th><th>Best ask</th><th>Decimal odds*</th><th>Updated</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    }).join("");
+  }
+  function process(payload) {
+    var messages = Array.isArray(payload) ? payload : [payload];
+    messages.forEach(function(message) {
+      if (!message) return;
+      if (message.event_type === "book") {
+        var id = String(message.asset_id || "");
+        if (!id) return;
+        var book = getBook(id);
+        book.bids = {}; book.asks = {};
+        arr(message.bids).forEach(function(level) {
+          var p = safeNumber(level.price), s = safeNumber(level.size);
+          if (p !== null && s > 0) book.bids[String(p)] = s;
+        });
+        arr(message.asks).forEach(function(level) {
+          var p = safeNumber(level.price), s = safeNumber(level.size);
+          if (p !== null && s > 0) book.asks[String(p)] = s;
+        });
+        book.at = Date.now();
+      } else if (message.event_type === "price_change") {
+        arr(message.price_changes).forEach(function(change) {
+          var id = String(change.asset_id || "");
+          var p = safeNumber(change.price), s = safeNumber(change.size);
+          if (!id || p === null || s === null) return;
+          var book = getBook(id);
+          var side = String(change.side || "").toUpperCase() === "BUY" ? book.bids : book.asks;
+          if (s <= 0) delete side[String(p)]; else side[String(p)] = s;
+          book.at = Date.now();
+        });
+      } else if (message.event_type === "best_bid_ask") {
+        var id2 = String(message.asset_id || "");
+        if (id2) {
+          var b = getBook(id2);
+          var bid = safeNumber(message.best_bid), ask = safeNumber(message.best_ask);
+          if (bid !== null) b.bids[String(bid)] = b.bids[String(bid)] || 1;
+          if (ask !== null) b.asks[String(ask)] = b.asks[String(ask)] || 1;
+          b.at = Date.now();
         }
       }
-    }
-
-    status(`Loaded ${events.length} events; ${d.liveCount || 0} explicitly flagged live.`);
+    });
+    lastPacket = Date.now();
+    packetCount++;
+    $("packet").textContent = "Last feed packet: " + new Date(lastPacket).toLocaleTimeString();
+    $("latency").textContent = "Packets received: " + packetCount;
     render();
-    subscribe();
-
-  } catch (e) {
-    status("Discovery failed: " + e.message);
-    $("root").innerHTML =
-      '<div class="empty">Could not load markets: ' +
-      esc(e.message) + '</div>';
   }
-}
-
-document.querySelectorAll(".sport").forEach(b=>b.onclick=()=>{document.querySelectorAll(".sport").forEach(x=>x.classList.toggle("active",x===b));sport=b.dataset.sport;load()});
-$("refresh").onclick=load;$("filter").oninput=render;load();connect();setInterval(()=>{if(latestPacket&&Date.now()-latestPacket>15000)$("packet").textContent="Last feed packet: STALE "+Math.floor((Date.now()-latestPacket)/1000)+"s ago"},2500);
+  function connect() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    try {
+      ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+    } catch (error) {
+      $("feed").textContent = "Feed error: " + error.message;
+      retryTimer = setTimeout(connect, 2500);
+      return;
+    }
+    ws.onopen = function() {
+      $("feed").textContent = "Feed connected";
+      subscribe();
+    };
+    ws.onmessage = function(event) {
+      var message;
+      try { message = JSON.parse(event.data); } catch (_) { return; }
+      if (message.kind === "feed") {
+        $("feed").textContent = "Feed " + message.status;
+      } else if (message.kind === "market") {
+        process(message.data);
+      }
+    };
+    ws.onerror = function() { $("feed").textContent = "Feed error"; };
+    ws.onclose = function() {
+      $("feed").textContent = "Feed disconnected · retrying";
+      retryTimer = setTimeout(connect, 2000);
+    };
+  }
+  async function load() {
+    var selected = document.querySelector(".sport.active");
+    sport = selected ? selected.getAttribute("data-sport") : sport;
+    setStatus("Loading " + sport + " events from server…");
+    $("root").innerHTML = '<div class="empty">Loading markets…</div>';
+    try {
+      var response = await fetch("/api/events?sport=" + encodeURIComponent(sport) + "&_=" + Date.now(), {cache:"no-store"});
+      var body = await response.text(), data;
+      try { data = JSON.parse(body); } catch (_) { throw new Error("API did not return JSON: " + body.slice(0,100)); }
+      if (!response.ok) throw new Error(data.detail || data.error || ("HTTP " + response.status));
+      if (!Array.isArray(data.events)) throw new Error("API response has no events array");
+      events = data.events;
+      books = Object.create(null);
+      setStatus("API OK · " + events.length + " events · checked " + new Date(data.checkedAt || Date.now()).toLocaleTimeString());
+      render();
+      subscribe();
+    } catch (error) {
+      events = [];
+      setStatus("API error: " + error.message);
+      $("root").innerHTML = '<div class="empty">Could not load events: ' + esc(error.message) + '</div>';
+      $("eventsCount").textContent = "Events: 0";
+    }
+  }
+  window.addEventListener("error", function(event) {
+    if (event && event.message) setStatus("JavaScript error: " + event.message + " · line " + (event.lineno || "?"));
+  });
+  document.querySelectorAll(".sport").forEach(function(button) {
+    button.addEventListener("click", function() {
+      document.querySelectorAll(".sport").forEach(function(other) { other.classList.toggle("active", other === button); });
+      load();
+    });
+  });
+  $("refresh").addEventListener("click", load);
+  $("filter").addEventListener("input", render);
+  setStatus("JavaScript started · connecting to API and feed…");
+  connect();
+  load();
+  setInterval(function() {
+    if (lastPacket && Date.now() - lastPacket > 15000) {
+      $("packet").textContent = "Last feed packet: STALE " + Math.floor((Date.now() - lastPacket) / 1000) + "s ago";
+    }
+  }, 2500);
+})();
 </script></body></html>
