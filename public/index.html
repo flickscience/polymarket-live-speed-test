@@ -20,6 +20,22 @@ main{padding:6px;max-width:1250px;margin:auto}.event{border-bottom:1px solid #cc
   document.getElementById("status").textContent =
     "JavaScript error: " + message + " (line " + line + ")";
 };
+ window.addEventListener("error", function(event) {
+  const status = document.getElementById("status");
+  if (status) {
+    status.textContent =
+      "JavaScript error: " + event.message +
+      " | Line: " + event.lineno;
+  }
+});
+
+window.addEventListener("unhandledrejection", function(event) {
+  const status = document.getElementById("status");
+  if (status) {
+    status.textContent =
+      "Async error: " + String(event.reason);
+  }
+});
 const $=id=>document.getElementById(id);let sport="soccer",events=[],ws,retry,latestPacket=0,queued=false;
 const books=new Map(), tokenMeta=new Map();
 const arr=v=>Array.isArray(v)?v:[];
