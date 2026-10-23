@@ -29,6 +29,7 @@ function normalizeMarket(m) {
   return {
     id:String(m.id||m.conditionId||m.slug||""),
     question:String(m.question||m.groupItemTitle||m.slug||""),
+    selection:String(m.marketMetadata?.opticOddsSelection||m.groupItemTitle||""),
     slug:String(m.slug||""),
     outcomes:outcomes.map((label,i)=>({label:String(label),tokenId:ids[i]?String(ids[i]):""})).filter(o=>o.tokenId)
   };
