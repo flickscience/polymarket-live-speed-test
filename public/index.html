@@ -6,7 +6,7 @@
 </style></head><body>
 <header><h1>Polymarket · Live Odds</h1><nav class="sports" aria-label="Sports"><button data-sport="soccer" aria-label="Football / Soccer" title="Football / Soccer">⚽</button><button data-sport="cricket" aria-label="Cricket" title="Cricket">🏏</button><button data-sport="tennis" aria-label="Tennis" title="Tennis">🎾</button></nav><div id="status" class="status">Choose a sport to list live matches. No market WebSocket is opened until a match is selected.</div></header>
 <main><section id="matches-view" class="hidden"><button id="back" class="back">← Matches</button><div id="match-list" class="match-list" style="margin-top:8px"></div></section>
-<section id="odds-view" class="hidden"><button id="change-match" class="back">← Live matches</button><div id="match-title" class="match-title"></div><table class="grid"><thead><tr><th>Team · original Polymarket Yes price</th></tr></thead><tbody id="odds-rows"></tbody></table><div class="meta"><span>Socket: <strong id="socket-state">off</strong></span><span>Packets: <strong id="packets">0</strong></span><span>Last packet: <strong id="last-packet">—</strong></span><span>Local time: <strong id="clock">—</strong></span><span>Server time: <strong id="server-time">—</strong></span></div><div class="hint">Live moneyline only. Shows Polymarket’s original best ask price without decimal-odds conversion. Read-only; no orders are placed.</div></section>
+<section id="odds-view" class="hidden"><button id="change-match" class="back">← Live matches</button><div id="match-title" class="match-title"></div><table class="grid"><thead><tr><th>Team / outcome</th><th>Yes</th><th>No</th></tr></thead><tbody id="odds-rows"></tbody></table><div class="meta"><span>Socket: <strong id="socket-state">off</strong></span><span>Packets: <strong id="packets">0</strong></span><span>Last packet: <strong id="last-packet">—</strong></span><span>Local time: <strong id="clock">—</strong></span><span>Server time: <strong id="server-time">—</strong></span></div><div class="hint">Live moneyline only. Shows Polymarket’s original best ask price without decimal-odds conversion. Read-only; no orders are placed.</div></section>
 <section id="empty-view"><div class="hint">Select a sport icon to see only its live matches.</div></section></main>
 <script>
 (function(){
@@ -21,37 +21,33 @@ function closeMarketSocket(){if(state.heartbeat){clearInterval(state.heartbeat);
 function showMatches(){closeMarketSocket();$("odds-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("matches-view").classList.remove("hidden")}
 function marketLabel(m,event){let q=String(m.question||m.slug||"").trim();q=q.replace(/^will\s+/i,"").replace(/\s+(win|to win|win the match)\??$/i,"").replace(/\?$/,"").trim();if(!q||q.toLowerCase()===String(event.title||"").toLowerCase())q=String(m.slug||q||"Outcome");return q}
 function getRows(event){
- const markets=arr(event.markets), rows=[], seen=new Set();
- const rawTitle=String(event.title||"").replace(/^.*?:\s*/,"");
- const participants=rawTitle.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map(x=>x.trim()).filter(Boolean);
- if(participants.length!==2)return [];
+ const markets=arr(event.markets), rows=[];
+ const title=String(event.title||"").replace(/^.*?:\s*/,"");
+ const teams=title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map(x=>x.trim()).filter(Boolean);
+ if(teams.length!==2)return [];
  const norm=s=>String(s||"").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
- const names=participants.map(norm);
- const matchesTeam=label=>{const n=norm(label);return names.findIndex(p=>p===n||p.includes(n)||n.includes(p));};
- // First choice: a market whose outcome labels directly match both teams.
+ const names=teams.map(norm);
+ const makeRow=(label)=>({label,yesToken:"",noToken:"",tokenId:"",market:null,index:rows.length});
+ const assign=(row,m)=>{const outs=arr(m.outcomes);const yes=outs.find(o=>/^yes$/i.test(String(o.label||"").trim()));const no=outs.find(o=>/^no$/i.test(String(o.label||"").trim()));if(yes?.tokenId)row.yesToken=yes.tokenId;if(no?.tokenId)row.noToken=no.tokenId;row.market=m;};
+ for(const team of teams)rows.push(makeRow(team));
+ let drawRow=null;
  for(const m of markets){
-  const outcomes=arr(m.outcomes).filter(o=>o.tokenId);
-  const byTeam=[null,null];
-  for(const o of outcomes){const i=matchesTeam(o.label);if(i>=0)byTeam[i]=o;}
-  if(byTeam[0]&&byTeam[1]&&byTeam[0].tokenId!==byTeam[1].tokenId){
-   for(let i=0;i<2;i++){const key=names[i];if(!seen.has(key)){seen.add(key);rows.push({label:participants[i],tokenId:byTeam[i].tokenId,market:m})}}
-   if(rows.length===2)return rows;
-  }
- }
- // Fallback: separate Yes/No markets, but only if question/selection explicitly identifies one of these two teams.
- for(const m of markets){
-  const outcomes=arr(m.outcomes),yes=outcomes.find(o=>/^yes$/i.test(String(o.label||"").trim()));
-  if(!yes||!yes.tokenId)continue;
   const q=String(m.question||"")+" "+String(m.selection||"")+" "+String(m.slug||"");
-  if(/\b(draw|tie|over.?time|penalt|total|corner|card|goal|handicap|spread|half|set|map|round|score|both teams|clean sheet|correct score|total goals|first half|second half|more markets)\b/i.test(q))continue;
-  const qn=norm(q);
-  const hit=names.map((p,i)=>({p,i})).filter(x=>x.p&&qn.includes(x.p));
+  const nq=norm(q);
+  if(/\b(draw|tie)\b/i.test(q)){
+   if(!drawRow){drawRow=makeRow("Draw");rows.push(drawRow);}
+   assign(drawRow,m);continue;
+  }
+  const hit=names.map((n,i)=>({n,i})).filter(x=>x.n&&nq.includes(x.n));
   if(hit.length!==1)continue;
-  const i=hit[0].i;
-  if(!seen.has(names[i])){seen.add(names[i]);rows.push({label:participants[i],tokenId:yes.tokenId,market:m})}
+  const row=rows[hit[0].i];
+  const outs=arr(m.outcomes);
+  if(outs.some(o=>/^yes$/i.test(String(o.label||"").trim()))){assign(row,m);continue;}
+  // Some markets expose team names as the actual outcomes, not Yes/No.
+  const matching=outs.find(o=>norm(o.label)===names[hit[0].i]&&o.tokenId);
+  if(matching&&!row.yesToken){row.yesToken=matching.tokenId;row.market=m;}
  }
- if(rows.length!==2)return [];
- return rows.sort((a,b)=>names.indexOf(norm(a.label))-names.indexOf(norm(b.label)));
+ return rows.filter(r=>r.yesToken||r.noToken||r.tokenId).map((r,index)=>({...r,index,tokenId:r.yesToken||r.tokenId}));
 }
 async function loadSport(sport){
  closeMarketSocket();state.sport=sport;state.events=[];state.rows=[];state.books=Object.create(null);
@@ -68,7 +64,8 @@ async function loadSport(sport){
  }catch(err){if(id!==state.requestId)return;setStatus("API error: "+err.message);$("match-list").innerHTML='<div class="hint">'+esc(err.message)+'</div>'}
 }
 function makeCell(row){
- return '<td class="quote"><div class="team-price-row"><div class="team-name">'+esc(row.label)+'</div><div class="quote-box backbox" id="price-'+row.index+'"><div class="odds" id="odds-'+row.index+'">—</div><div class="liq" id="price-meta-'+row.index+'">Waiting for price…</div></div></div></td>';
+ const cell=(kind,token)=>'<div class="price-side"><div class="side-label">'+kind+'</div><div class="quote-box backbox" id="price-'+row.index+'-'+kind.toLowerCase()+'"><div class="odds" id="odds-'+row.index+'-'+kind.toLowerCase()+'">—</div><div class="decimal" id="decimal-'+row.index+'-'+kind.toLowerCase()+'"></div><div class="liq" id="price-meta-'+row.index+'-'+kind.toLowerCase()+'">Waiting for packet…</div></div></div>';
+ return '<td class="quote"><div class="team-price-row"><div class="team-name">'+esc(row.label)+'</div><div class="yes-no-grid">'+cell('Yes',row.yesToken||row.tokenId)+cell('No',row.noToken)+'</div></div></td>';
 }
 function renderSelected(event){
  closeMarketSocket();state.selectedEvent=event;
@@ -77,9 +74,9 @@ function renderSelected(event){
  $("matches-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("odds-view").classList.remove("hidden");
  $("match-title").textContent=event.title;
  if(state.rows.length!==2){$("odds-rows").innerHTML='<tr><td colspan="2">Polymarket did not expose exactly two identifiable moneyline team tokens for this event.</td></tr>';setStatus("No reliable two-team moneyline mapping; avoiding unrelated markets.");$("socket-state").textContent="off";return}
- $("odds-rows").innerHTML=state.rows.map(r=>'<tr>'+makeCell(r)+'</tr>').join("");
+ $("odds-rows").innerHTML=state.rows.map(r=>'<tr>'+'<td class="team-cell">'+esc(r.label)+'</td>'+'<td class="quote">'+makeCell(r).match(/<div class="yes-no-grid">([\s\S]*?)<\/div><\/div><\/td>/)[1].replace(/<div class="price-side">/g,'<div class="price-side">')+'</td>'+'</tr>').join("");
  $("packets").textContent="0";$("last-packet").textContent="—";$("server-time").textContent="—";$("socket-state").textContent="connecting";
- connectSelected(state.rows.map(r=>r.tokenId).filter(Boolean));
+ connectSelected([...new Set(state.rows.flatMap(r=>[r.yesToken||r.tokenId,r.noToken]).filter(Boolean))]);
 }
 function book(token){if(!state.books[token])state.books[token]={bids:Object.create(null),asks:Object.create(null),at:0};return state.books[token]}
 function top(token){if(!token)return {ask:null,size:null,bid:null,bidSize:null};const b=book(token),asks=Object.keys(b.asks).map(Number).filter(p=>p>0).sort((a,c)=>a-c),bids=Object.keys(b.bids).map(Number).filter(p=>p>0).sort((a,c)=>c-a);return {ask:asks.length?asks[0]:null,size:asks.length?b.asks[String(asks[0])]:null,bid:bids.length?bids[0]:null,bidSize:bids.length?b.bids[String(bids[0])]:null}}
