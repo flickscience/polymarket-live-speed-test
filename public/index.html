@@ -92,11 +92,6 @@ function processPacket(payload){
    arr(m.asks).forEach(x=>{const p=num(x.price),s=num(x.size);if(p!==null&&s>0)b.asks[String(p)]=s});b.at=Date.now();changed=true;
   }else if(m.event_type==="price_change"){
    arr(m.price_changes).forEach(x=>{const id=String(x.asset_id||""),p=num(x.price),s=num(x.size);if(!id||p===null||s===null)return;const b=book(id),side=String(x.side||"").toUpperCase()==="BUY"?b.bids:b.asks;if(s<=0)delete side[String(p)];else side[String(p)]=s;b.at=Date.now();changed=true});
-  }else if(m.event_type==="best_bid_ask"){
-   const id=String(m.asset_id||"");if(!id)continue;const b=book(id),bid=num(m.best_bid),ask=num(m.best_ask);
-   if(bid!==null){b.bids=Object.create(null);const bs=num(m.best_bid_size);if(bs!==null)b.bids[String(bid)]=bs}
-   if(ask!==null){b.asks=Object.create(null);const as=num(m.best_ask_size);if(as!==null)b.asks[String(ask)]=as}
-   b.at=Date.now();changed=true;
   }
  }
  state.packetCount++;state.lastPacket=Date.now();$("packets").textContent=String(state.packetCount);$("last-packet").textContent=new Date(state.lastPacket).toLocaleTimeString();const ts=messages.map(m=>num(m.timestamp)).find(v=>v!==null);if(ts!==undefined&&ts!==null)$("server-time").textContent=new Date(ts<1e12?ts*1000:ts).toLocaleTimeString();if(changed)updateRows();
@@ -105,7 +100,7 @@ function connectSelected(tokens){
  closeMarketSocket();if(!tokens.length){$("socket-state").textContent="no tokens";setStatus("No moneyline tokens found for this match.");return}
  const ws=new WebSocket("wss://ws-subscriptions-clob.polymarket.com/ws/market");state.socket=ws;
  if(state.heartbeat){clearInterval(state.heartbeat);state.heartbeat=null}
- ws.onopen=()=>{if(state.socket!==ws)return;$("socket-state").textContent="connected · "+tokens.length+" tokens";ws.send(JSON.stringify({assets_ids:tokens,type:"market",custom_feature_enabled:true}));state.heartbeat=setInterval(()=>{if(state.socket===ws&&ws.readyState===WebSocket.OPEN)ws.send("PING")},10000);setStatus("Moneyline only · subscribed to "+tokens.length+" tokens.")};
+ ws.onopen=()=>{if(state.socket!==ws)return;$("socket-state").textContent="connected · "+tokens.length+" tokens";ws.send(JSON.stringify({assets_ids:tokens,type:"market"}));state.heartbeat=setInterval(()=>{if(state.socket===ws&&ws.readyState===WebSocket.OPEN)ws.send("PING")},10000);setStatus("Moneyline only · subscribed to "+tokens.length+" tokens.")};
  ws.onmessage=ev=>{if(state.socket!==ws)return;if(ev.data==="PONG"||ev.data==="pong")return;let data;try{data=JSON.parse(ev.data)}catch(_){return}processPacket(data)};
  ws.onerror=()=>{if(state.socket===ws){$("socket-state").textContent="error";setStatus("Market WebSocket error; reconnect by reselecting the match.")}};
  ws.onclose=()=>{if(state.heartbeat){clearInterval(state.heartbeat);state.heartbeat=null}if(state.socket===ws){$("socket-state").textContent="closed";setStatus("Market WebSocket closed. Re-select the match to reconnect.")}};
