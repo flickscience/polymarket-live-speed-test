@@ -6,7 +6,7 @@
 </style></head><body>
 <header><h1>Polymarket · Live Odds</h1><nav class="sports" aria-label="Sports"><button data-sport="soccer" aria-label="Football / Soccer" title="Football / Soccer">⚽</button><button data-sport="cricket" aria-label="Cricket" title="Cricket">🏏</button><button data-sport="tennis" aria-label="Tennis" title="Tennis">🎾</button></nav><div id="status" class="status">Choose a sport to list live matches. No market WebSocket is opened until a match is selected.</div></header>
 <main><section id="matches-view" class="hidden"><button id="back" class="back">← Matches</button><div id="match-list" class="match-list" style="margin-top:8px"></div></section>
-<section id="odds-view" class="hidden"><button id="change-match" class="back">← Live matches</button><div id="match-title" class="match-title"></div><table class="grid"><thead><tr><th>Team / outcome</th><th>Decimal odds</th></tr></thead><tbody id="odds-rows"></tbody></table><div class="meta"><span>Socket: <strong id="socket-state">off</strong></span><span>Packets: <strong id="packets">0</strong></span><span>Last packet: <strong id="last-packet">—</strong></span><span>Local time: <strong id="clock">—</strong></span><span>Server time: <strong id="server-time">—</strong></span></div><div class="hint">Live moneyline only. Decimal odds are calculated from Polymarket best ask price (1 ÷ price); Polymarket’s public feed provides probability prices, not a separate decimal-odds field. Read-only; no orders are placed.</div></section>
+<section id="odds-view" class="hidden"><button id="change-match" class="back">← Live matches</button><div id="match-title" class="match-title"></div><table class="grid"><thead><tr><th>Team / outcome</th><th>Polymarket price</th></tr></thead><tbody id="odds-rows"></tbody></table><div class="meta"><span>Socket: <strong id="socket-state">off</strong></span><span>Packets: <strong id="packets">0</strong></span><span>Last packet: <strong id="last-packet">—</strong></span><span>Local time: <strong id="clock">—</strong></span><span>Server time: <strong id="server-time">—</strong></span></div><div class="hint">Live moneyline only. Shows Polymarket’s original best ask price without decimal-odds conversion. Read-only; no orders are placed.</div></section>
 <section id="empty-view"><div class="hint">Select a sport icon to see only its live matches.</div></section></main>
 <script>
 (function(){
@@ -79,8 +79,8 @@ function fmtSize(size){return size!=null&&Number.isFinite(size)?Number(size).toL
 function updateRows(){
  for(const r of state.rows){
   const q=top(r.tokenId),el=$("odds-"+r.index),meta=$("price-meta-"+r.index);
-  if(el)el.textContent=fmtOdds(q.ask);
-  if(meta)meta.textContent=q.ask==null?"No best ask": "Ask "+q.ask.toFixed(4);
+  if(el)el.textContent=q.ask==null?"—":q.ask.toFixed(4);
+  if(meta)meta.textContent=q.ask==null?"No best ask":"Original ask price";
  }
 }
 function processPacket(payload){
