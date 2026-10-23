@@ -16,6 +16,10 @@ main{padding:6px;max-width:1250px;margin:auto}.event{border-bottom:1px solid #cc
 <main id="root"><div class="empty">Loading…</div></main>
 <div class="note">Read-only speed test. Binary YES BACK-equivalent odds = 1 ÷ YES best ask; NO LAY-equivalent odds = 1 ÷ NO best ask. Multi-outcome markets retain their real outcome labels and are not incorrectly mapped to YES/NO. YES and NO are separate token books, not a bookmaker's BACK/LAY quote. Top ask size and top-five depth are indicative, not guaranteed fills. Public API coverage and network latency can limit completeness. No orders are placed.</div>
 <script>
+ window.onerror = function(message, source, line) {
+  document.getElementById("status").textContent =
+    "JavaScript error: " + message + " (line " + line + ")";
+};
 const $=id=>document.getElementById(id);let sport="soccer",events=[],ws,retry,latestPacket=0,queued=false;
 const books=new Map(), tokenMeta=new Map();
 const arr=v=>Array.isArray(v)?v:[];
