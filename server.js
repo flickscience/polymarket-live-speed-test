@@ -254,7 +254,8 @@ function sendSubscription(ids) {
   for (let i = 0; i < ids.length; i += 300) {
     upstream.send(JSON.stringify({
       assets_ids: ids.slice(i, i + 300),
-      type: "market"
+      type: "market",
+      initial_dump: true
     }));
   }
 }
@@ -276,8 +277,10 @@ function connectUpstream() {
 
     clearInterval(pingTimer);
 
+    // The market channel rejects PING until a valid market subscription exists.
+    clearInterval(pingTimer);
     pingTimer = setInterval(() => {
-      if (upstream?.readyState === WebSocket.OPEN) {
+      if (upstream?.readyState === WebSocket.OPEN && subscribedTokens.size > 0) {
         upstream.send("PING");
       }
     }, 10000);
