@@ -254,8 +254,7 @@ function sendSubscription(ids) {
   for (let i = 0; i < ids.length; i += 300) {
     upstream.send(JSON.stringify({
       assets_ids: ids.slice(i, i + 300),
-      type: "market",
-      custom_feature_enabled: true
+      type: "market"
     }));
   }
 }
