@@ -77,7 +77,7 @@ function renderSelected(event){
  $("matches-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("odds-view").classList.remove("hidden");
  $("match-title").textContent=event.title;
  if(state.rows.length!==2){$("odds-rows").innerHTML='<tr><td colspan="2">Polymarket did not expose exactly two identifiable moneyline team tokens for this event.</td></tr>';setStatus("No reliable two-team moneyline mapping; avoiding unrelated markets.");$("socket-state").textContent="off";return}
- $("odds-rows").innerHTML=state.rows.map(r=>'<tr><td>'+esc(r.label)+'</td>'+makeCell(r)+'</tr>').join("");
+ $("odds-rows").innerHTML=state.rows.map(r=>'<tr>'+makeCell(r)+'</tr>').join("");
  $("packets").textContent="0";$("last-packet").textContent="—";$("server-time").textContent="—";$("socket-state").textContent="connecting";
  connectSelected(state.rows.map(r=>r.tokenId).filter(Boolean));
 }
