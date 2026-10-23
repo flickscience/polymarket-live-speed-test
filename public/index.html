@@ -73,7 +73,7 @@ function renderSelected(event){
  state.books=Object.create(null);state.packetCount=0;state.lastPacket=0;
  $("matches-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("odds-view").classList.remove("hidden");
  $("match-title").textContent=event.title;
- if(state.rows.length!==2){$("odds-rows").innerHTML='<tr><td colspan="2">Polymarket did not expose exactly two identifiable moneyline team tokens for this event.</td></tr>';setStatus("No reliable two-team moneyline mapping; avoiding unrelated markets.");$("socket-state").textContent="off";return}
+ if(state.rows.length<2){$("odds-rows").innerHTML='<tr><td colspan="3">Polymarket did not expose identifiable team outcome tokens for this event.</td></tr>';setStatus("No reliable two-team moneyline mapping; avoiding unrelated markets.");$("socket-state").textContent="off";return}
  $("odds-rows").innerHTML=state.rows.map(r=>'<tr><td class="team-cell">'+esc(r.label)+'</td>'+makeCell(r)+'</tr>').join("");
  $("packets").textContent="0";$("last-packet").textContent="—";$("server-time").textContent="—";$("socket-state").textContent="connecting";
  connectSelected([...new Set(state.rows.flatMap(r=>[r.yesToken||r.tokenId,r.noToken]).filter(Boolean))]);
