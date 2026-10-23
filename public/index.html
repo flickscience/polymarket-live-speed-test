@@ -36,8 +36,8 @@ function getRows(event){
   for(const m of markets){
    const outcomes=arr(m.outcomes),yes=outcomes.find(o=>/^yes$/i.test(String(o.label||"").trim()));
    const q=String(m.question||m.slug||"").trim();
-   if(!yes||!yes.tokenId||teamWords.test(q)||!/\b(win|winner|to win)\b/i.test(q))continue;
-   let label=q.replace(/^will\s+/i,"").replace(/\s+(win|to win|win the match)\??$/i,"").replace(/\?$/,"").trim();
+   if(!yes||!yes.tokenId||teamWords.test(q)||!/\b(win|winner|moneyline|match result|to win)\b/i.test(q))continue;
+   let label=String(m.selection||"").trim()||q.replace(/^will\s+/i,"").replace(/\s+(win|to win|win the match)\??$/i,"").replace(/\?$/,"").trim();
    label=label.replace(/\s+(win|winner|moneyline).*$/i,"").trim();
    if(!label||/^(yes|no)$/i.test(label))continue;
    const key=label.toLowerCase();if(!seen.has(key)){seen.add(key);rows.push({label,tokenId:yes.tokenId,market:m})}
