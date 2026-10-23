@@ -51,8 +51,8 @@ async function fetchLiveEvents(sport) {
   return data.filter(e=>{
     const id=String(e?.id||e?.slug||"");if(!id||seen.has(id))return false;seen.add(id);
     const title=String(e.title||"").trim();
-    const isChildMarket=/\\s-\\s*(more markets|exact score|correct score|half.?time result|halftime result|first half|player props|corners|cards)\\s*$/i.test(title);
-    const isHeadToHead=/\\b(vs\\.?|v\\.?|versus)\\b/i.test(title);
+    const isChildMarket=/\s-\s*(more markets|exact score|correct score|half.?time result|halftime result|first half|player props|corners|cards)\s*$/i.test(title);
+    const isHeadToHead=/\b(vs\.?|v\.?|versus)\b/i.test(title);
     return (e.live===true||String(e.live).toLowerCase()==="true")&&e.closed!==true&&e.active!==false&&!isChildMarket&&isHeadToHead&&isSport(e,sport);
   }).map(normalizeEvent).filter(e=>e.markets.length);
 }
