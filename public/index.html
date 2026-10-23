@@ -6,7 +6,7 @@
 </style></head><body>
 <header><h1>Polymarket · Live Odds</h1><nav class="sports" aria-label="Sports"><button data-sport="soccer" aria-label="Football / Soccer" title="Football / Soccer">⚽</button><button data-sport="cricket" aria-label="Cricket" title="Cricket">🏏</button><button data-sport="tennis" aria-label="Tennis" title="Tennis">🎾</button></nav><div id="status" class="status">Choose a sport to list live matches. No market WebSocket is opened until a match is selected.</div></header>
 <main><section id="matches-view" class="hidden"><button id="back" class="back">← Matches</button><div id="match-list" class="match-list" style="margin-top:8px"></div></section>
-<section id="odds-view" class="hidden"><button id="change-match" class="back">← Live matches</button><div id="match-title" class="match-title"></div><table class="grid"><thead><tr><th>Team</th><th>Back</th><th>Lay</th></tr></thead><tbody id="odds-rows"></tbody></table><div class="meta"><span>Socket: <strong id="socket-state">off</strong></span><span>Packets: <strong id="packets">0</strong></span><span>Last packet: <strong id="last-packet">—</strong></span><span>Local time: <strong id="clock">—</strong></span><span>Server time: <strong id="server-time">—</strong></span></div><div class="hint">Odds = exact decimal conversion (1 ÷ Polymarket best ask price). Liquidity is the size available at that exact best ask level; it is not a guaranteed fill. Missing Polymarket prices remain blank. Read-only; no orders are placed.</div></section>
+<section id="odds-view" class="hidden"><button id="change-match" class="back">← Live matches</button><div id="match-title" class="match-title"></div><table class="grid"><thead><tr><th>Team / outcome</th><th>Decimal odds</th></tr></thead><tbody id="odds-rows"></tbody></table><div class="meta"><span>Socket: <strong id="socket-state">off</strong></span><span>Packets: <strong id="packets">0</strong></span><span>Last packet: <strong id="last-packet">—</strong></span><span>Local time: <strong id="clock">—</strong></span><span>Server time: <strong id="server-time">—</strong></span></div><div class="hint">Live moneyline only. Decimal odds are calculated from Polymarket best ask price (1 ÷ price); Polymarket’s public feed provides probability prices, not a separate decimal-odds field. Read-only; no orders are placed.</div></section>
 <section id="empty-view"><div class="hint">Select a sport icon to see only its live matches.</div></section></main>
 <script>
 (function(){
@@ -21,24 +21,29 @@ function closeMarketSocket(){if(state.socket){state.socket.onopen=state.socket.o
 function showMatches(){closeMarketSocket();$("odds-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("matches-view").classList.remove("hidden")}
 function marketLabel(m,event){let q=String(m.question||m.slug||"").trim();q=q.replace(/^will\s+/i,"").replace(/\s+(win|to win|win the match)\??$/i,"").replace(/\?$/,"").trim();if(!q||q.toLowerCase()===String(event.title||"").toLowerCase())q=String(m.slug||q||"Outcome");return q}
 function getRows(event){
- const markets=arr(event.markets),rows=[],seen=new Set();
+ const markets=arr(event.markets), rows=[], seen=new Set();
+ const teamWords=/\b(draw|tie|over.?time|penalt|total|corner|card|goal|handicap|spread|half|set|map|round|score|both teams|clean sheet|correct score|total goals|first half|second half)\b/i;
+ // Prefer a two-outcome winner/moneyline market with actual team outcomes.
  for(const m of markets){
-  const outcomes=arr(m.outcomes);if(!outcomes.length)continue;
-  const yes=outcomes.find(o=>String(o.label).toLowerCase()==="yes"),no=outcomes.find(o=>String(o.label).toLowerCase()==="no");
-  if(yes&&no){
-   let label=marketLabel(m,event);
-   if(/\b(draw|tie|over.?time|penalt|total|corner|card|goal|handicap|spread|half|set|map|round|score|both teams|clean sheet)\b/i.test(label))continue;
-   if(/^(yes|no)$/i.test(label))continue;
-   const k=label.toLowerCase();if(seen.has(k))continue;seen.add(k);
-   rows.push({label,backToken:yes.tokenId,layToken:no.tokenId,market:m});
-  }else{
-   const meaningful=outcomes.filter(o=>o.tokenId&&!/^(yes|no)$/i.test(String(o.label)));
-   if(meaningful.length>=2&&/winner|win|match result|moneyline/i.test(String(m.question||""))){
-    meaningful.forEach(o=>{const label=String(o.label);if(!seen.has(label.toLowerCase())){seen.add(label.toLowerCase());rows.push({label,backToken:o.tokenId,layToken:"",market:m})}});
-   }
+  const outcomes=arr(m.outcomes).filter(o=>o.tokenId&&!/^(yes|no)$/i.test(String(o.label||"").trim()));
+  const q=String(m.question||m.slug||"");
+  if(outcomes.length===2 && /winner|moneyline|match result|to win|win the match/i.test(q) && !teamWords.test(q)){
+   for(const o of outcomes){const label=String(o.label||"").trim(), key=label.toLowerCase();if(label&&!seen.has(key)){seen.add(key);rows.push({label,tokenId:o.tokenId,market:m})}}
   }
  }
- return rows.slice(0,4);
+ // Some sports events encode each team as a Yes/No market; use only explicit "Will TEAM win" moneyline questions.
+ if(rows.length<2){
+  for(const m of markets){
+   const outcomes=arr(m.outcomes),yes=outcomes.find(o=>/^yes$/i.test(String(o.label||"").trim()));
+   const q=String(m.question||m.slug||"").trim();
+   if(!yes||!yes.tokenId||teamWords.test(q)||!/\b(win|winner|to win)\b/i.test(q))continue;
+   let label=q.replace(/^will\s+/i,"").replace(/\s+(win|to win|win the match)\??$/i,"").replace(/\?$/,"").trim();
+   label=label.replace(/\s+(win|winner|moneyline).*$/i,"").trim();
+   if(!label||/^(yes|no)$/i.test(label))continue;
+   const key=label.toLowerCase();if(!seen.has(key)){seen.add(key);rows.push({label,tokenId:yes.tokenId,market:m})}
+  }
+ }
+ return rows.slice(0,2);
 }
 async function loadSport(sport){
  closeMarketSocket();state.sport=sport;state.events=[];state.rows=[];state.books=Object.create(null);
@@ -54,20 +59,18 @@ async function loadSport(sport){
   setStatus("Live match list ready · "+state.events.length+" matches. WebSocket is still off.");
  }catch(err){if(id!==state.requestId)return;setStatus("API error: "+err.message);$("match-list").innerHTML='<div class="hint">'+esc(err.message)+'</div>'}
 }
-function makeCell(row,side){
- const cls=side==="back"?"backbox":"laybox";
- return '<td class="quote"><div class="quote-box '+cls+'" id="'+side+'-'+row.index+'"><div class="odds" id="'+side+'-odds-'+row.index+'">—</div><div class="liq" id="'+side+'-liq-'+row.index+'">Liquidity —</div></div></td>';
+function makeCell(row){
+ return '<td class="quote"><div class="quote-box backbox" id="price-'+row.index+'"><div class="odds" id="odds-'+row.index+'">—</div><div class="liq" id="price-meta-'+row.index+'">Waiting for price…</div></div></td>';
 }
 function renderSelected(event){
  state.rows=getRows(event).map((r,index)=>({...r,index}));
  state.books=Object.create(null);state.packetCount=0;state.lastPacket=0;
  $("matches-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("odds-view").classList.remove("hidden");
  $("match-title").textContent=event.title;
- if(!state.rows.length){$("odds-rows").innerHTML='<tr><td colspan="3">No clear match-winner token markets found for this event.</td></tr>';setStatus("Selected match has no identifiable team winner market.");return}
- $("odds-rows").innerHTML=state.rows.map(r=>'<tr><td>'+esc(r.label)+'</td>'+makeCell(r,"back")+makeCell(r,"lay")+'</tr>').join("");
+ if(state.rows.length!==2){$("odds-rows").innerHTML='<tr><td colspan="2">Polymarket did not expose exactly two identifiable moneyline team tokens for this event.</td></tr>';setStatus("No reliable two-team moneyline mapping; avoiding unrelated markets.");$("socket-state").textContent="off";return}
+ $("odds-rows").innerHTML=state.rows.map(r=>'<tr><td>'+esc(r.label)+'</td>'+makeCell(r)+'</tr>').join("");
  $("packets").textContent="0";$("last-packet").textContent="—";$("server-time").textContent="—";$("socket-state").textContent="connecting";
- const tokens=[...new Set(state.rows.flatMap(r=>[r.backToken,r.layToken]).filter(Boolean))];
- connectSelected(tokens);
+ connectSelected(state.rows.map(r=>r.tokenId).filter(Boolean));
 }
 function book(token){if(!state.books[token])state.books[token]={bids:Object.create(null),asks:Object.create(null),at:0};return state.books[token]}
 function top(token){if(!token)return {ask:null,size:null,bid:null,bidSize:null};const b=book(token),asks=Object.keys(b.asks).map(Number).filter(p=>p>0).sort((a,c)=>a-c),bids=Object.keys(b.bids).map(Number).filter(p=>p>0).sort((a,c)=>c-a);return {ask:asks.length?asks[0]:null,size:asks.length?b.asks[String(asks[0])]:null,bid:bids.length?bids[0]:null,bidSize:bids.length?b.bids[String(bids[0])]:null}}
@@ -75,12 +78,9 @@ function fmtOdds(price){return price>0&&price<=1?(1/price).toFixed(2):"—"}
 function fmtSize(size){return size!=null&&Number.isFinite(size)?Number(size).toLocaleString(undefined,{maximumFractionDigits:2}):"—"}
 function updateRows(){
  for(const r of state.rows){
-  for(const item of [["back",r.backToken],["lay",r.layToken]]){
-   const side=item[0],token=item[1],q=top(token),price=q.ask;
-   const oddsEl=$(side+"-odds-"+r.index),liqEl=$(side+"-liq-"+r.index);
-   if(oddsEl)oddsEl.textContent=fmtOdds(price);
-   if(liqEl)liqEl.textContent=price==null?"Liquidity —":"@ "+price.toFixed(4)+" · "+fmtSize(q.size);
-  }
+  const q=top(r.tokenId),el=$("odds-"+r.index),meta=$("price-meta-"+r.index);
+  if(el)el.textContent=fmtOdds(q.ask);
+  if(meta)meta.textContent=q.ask==null?"No best ask": "Ask "+q.ask.toFixed(4);
  }
 }
 function processPacket(payload){
@@ -102,12 +102,13 @@ function processPacket(payload){
  state.packetCount++;state.lastPacket=Date.now();$("packets").textContent=String(state.packetCount);$("last-packet").textContent=new Date(state.lastPacket).toLocaleTimeString();const ts=messages.map(m=>num(m.timestamp)).find(v=>v!==null);if(ts!==undefined&&ts!==null)$("server-time").textContent=new Date(ts<1e12?ts*1000:ts).toLocaleTimeString();if(changed)updateRows();
 }
 function connectSelected(tokens){
- closeMarketSocket();if(!tokens.length){$("socket-state").textContent="no tokens";setStatus("No market tokens found for this match.");return}
+ closeMarketSocket();if(!tokens.length){$("socket-state").textContent="no tokens";setStatus("No moneyline tokens found for this match.");return}
  const ws=new WebSocket("wss://ws-subscriptions-clob.polymarket.com/ws/market");state.socket=ws;
- ws.onopen=()=>{if(state.socket!==ws)return;$("socket-state").textContent="connected · "+tokens.length+" tokens";ws.send(JSON.stringify({assets_ids:tokens,type:"market"}));setStatus("Selected match only · subscribed to "+tokens.length+" tokens.")};
+ let heartbeat=null;
+ ws.onopen=()=>{if(state.socket!==ws)return;$("socket-state").textContent="connected · "+tokens.length+" tokens";ws.send(JSON.stringify({assets_ids:tokens,type:"market",custom_feature_enabled:true}));heartbeat=setInterval(()=>{if(state.socket===ws&&ws.readyState===WebSocket.OPEN)ws.send("PING")},10000);setStatus("Moneyline only · subscribed to "+tokens.length+" tokens.")};
  ws.onmessage=ev=>{if(state.socket!==ws)return;if(ev.data==="PONG"||ev.data==="pong")return;let data;try{data=JSON.parse(ev.data)}catch(_){return}processPacket(data)};
- ws.onerror=()=>{if(state.socket===ws){$("socket-state").textContent="error";setStatus("Market WebSocket error; no reconnect loop is started.")}};
- ws.onclose=()=>{if(state.socket===ws){$("socket-state").textContent="closed";setStatus("Market WebSocket closed. Re-select the match to reconnect.")}};
+ ws.onerror=()=>{if(state.socket===ws){$("socket-state").textContent="error";setStatus("Market WebSocket error; reconnect by reselecting the match.")}};
+ ws.onclose=()=>{if(heartbeat)clearInterval(heartbeat);if(state.socket===ws){$("socket-state").textContent="closed";setStatus("Market WebSocket closed. Re-select the match to reconnect.")}};
 }
 document.querySelectorAll("[data-sport]").forEach(b=>b.addEventListener("click",()=>loadSport(b.dataset.sport)));
 $("match-list").addEventListener("click",e=>{const b=e.target.closest("button[data-index]");if(!b)return;const event=state.events[Number(b.dataset.index)];if(event)renderSelected(event)});
