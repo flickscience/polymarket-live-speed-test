@@ -298,10 +298,11 @@ function connectUpstream() {
     } catch {}
   });
 
-  upstream.on("close", () => {
+  upstream.on("close", (code, reason) => {
     clearInterval(pingTimer);
+    console.warn(`[clob-ws] closed code=${code} reason=${reason?.toString() || "(empty)"}`);
 
-    sendAll({ kind: "feed", status: "reconnecting" });
+    sendAll({ kind: "feed", status: `reconnecting (close ${code})` });
 
     reconnectTimer = setTimeout(connectUpstream, 2000);
   });
