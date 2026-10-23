@@ -16,6 +16,20 @@ main{padding:6px;max-width:1250px;margin:auto}.event{border-bottom:1px solid #cc
 <main id="root"><div class="empty">Loading…</div></main>
 <div class="note">Read-only speed test. Binary YES BACK-equivalent odds = 1 ÷ YES best ask; NO LAY-equivalent odds = 1 ÷ NO best ask. Multi-outcome markets retain their real outcome labels and are not incorrectly mapped to YES/NO. YES and NO are separate token books, not a bookmaker's BACK/LAY quote. Top ask size and top-five depth are indicative, not guaranteed fills. Public API coverage and network latency can limit completeness. No orders are placed.</div>
 <script>
+window.addEventListener("error", function(event) {
+  var status = document.getElementById("status");
+  if (status) status.textContent = "Script error: " + (event.message || "unknown") + " (line " + (event.lineno || "?") + ")";
+});
+window.addEventListener("unhandledrejection", function(event) {
+  var status = document.getElementById("status");
+  if (status) status.textContent = "Async error: " + String(event.reason);
+});
+document.addEventListener("DOMContentLoaded", function() {
+  var status = document.getElementById("status");
+  if (status) status.textContent = "Page loaded; starting dashboard script…";
+});
+</script>
+<script>
  window.onerror = function(message, source, line) {
   document.getElementById("status").textContent =
     "JavaScript error: " + message + " (line " + line + ")";
