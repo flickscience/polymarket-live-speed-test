@@ -20,7 +20,7 @@ function eventText(e) {
 function isSport(e,sport) {
   const t=eventText(e);
   if(sport==="soccer") return /soccer|football|premier league|epl|la liga|champions league|serie a|bundesliga|mls|uefa|fa cup|liga mx|copa/.test(t);
-  if(sport==="cricket") return /cricket|ipl|t20|odi|test match|big bash|ashes|ranji|county championship/.test(t);
+  if(sport==="cricket") return /cricket|\bipl\b|\bt20\b|\bodi\b|test match|big bash|ashes|ranji|county championship|women|\btest\b|one day cup|premier cup|premier league|super league|contintent cup|continental cup|world cup|sub regional qualifier|tour of|vs\.?|versus/.test(t);
   if(sport==="tennis") return /tennis|atp|wta|challenger|wimbledon|roland garros|us open|australian open|grand slam/.test(t);
   return false;
 }
@@ -43,7 +43,7 @@ function normalizeEvent(e) {
 }
 async function fetchLiveEvents(sport) {
   const url=new URL("/events",GAMMA);
-  for(const [k,v] of Object.entries({active:"true",closed:"false",live:"true",limit:"100",order:"volume24hr",ascending:"false"})) url.searchParams.set(k,v);
+  for(const [k,v] of Object.entries({active:"true",closed:"false",limit:"100",order:"volume24hr",ascending:"false"})) url.searchParams.set(k,v);
   const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
   if(!response.ok) throw new Error("Gamma API HTTP "+response.status);
   const data=await response.json();if(!Array.isArray(data))throw new Error("Gamma API returned unexpected response");
@@ -53,7 +53,7 @@ async function fetchLiveEvents(sport) {
     const title=String(e.title||"").trim();
     const isChildMarket=/\s-\s*(more markets|exact score|correct score|half.?time result|halftime result|first half|player props|corners|cards)\s*$/i.test(title);
     const isHeadToHead=/\b(vs\.?|v\.?|versus)\b/i.test(title);
-    return (e.live===true||String(e.live).toLowerCase()==="true")&&e.closed!==true&&e.active!==false&&!isChildMarket&&isHeadToHead&&isSport(e,sport);
+    return e.closed!==true&&e.active!==false&&!isChildMarket&&isHeadToHead&&isSport(e,sport);
   }).map(normalizeEvent).filter(e=>e.markets.length);
 }
 app.get("/api/events",async(req,res)=>{
