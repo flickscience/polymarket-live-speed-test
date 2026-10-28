@@ -1,6 +1,6 @@
-# Polymarket Live Speed Test
+# Polymarket Live Odds
 
-Minimal white-background, read-only dashboard for Soccer, Cricket, and Tennis.
+Minimal white-background, read-only dashboard for live Soccer, Cricket, and Tennis markets.
 
 ## Run
 Requires Node.js 20+.
@@ -10,11 +10,17 @@ npm start
 ```
 Open `http://localhost:3000`.
 
+## Data sources and latency
+- Gamma API discovers active, non-closed events and their market/token metadata. Discovery requests ask for live events, use the documented 500-item page limit, and filter the returned event records to `live=true`.
+- The selected match uses one public CLOB market WebSocket for its outcome tokens. The socket closes when leaving the match or choosing another match.
+- The dashboard is read-only and never places orders.
+- Market WebSocket updates are the live price path. The event list is a discovery snapshot and currently refreshes when a sport is selected; it does not poll continuously in the background.
+
 ## Market mapping
-Polymarket markets do not all use YES/NO outcomes. This project maps `outcomes[i]` to `clobTokenIds[i]` and preserves the actual labels. Only markets whose actual outcomes are YES and NO receive binary BACK/LAY-equivalent columns. Team/player/other multi-outcome markets show each real outcome and its own best ask and decimal odds; the app does not fabricate a NO price.
+Polymarket markets do not all use YES/NO outcomes. This project maps `outcomes[i]` to `clobTokenIds[i]` and preserves actual labels. It only displays outcomes that can be reliably mapped to the selected match's moneyline; it does not fabricate prices for missing tokens or mix in unrelated prop markets.
 
-## Speed test
-Open the same market and same token on the official website and dashboard. The public WebSocket feed shows order-book updates; the displayed render time is local UI render time, not end-to-end exchange latency. Compare repeated price changes before concluding which view is faster.
+## Speed testing
+Open the same market and token on the official website and dashboard. The WebSocket delivers public order-book updates; the displayed local render time is not end-to-end exchange latency. Compare repeated changes on the same token before drawing conclusions.
 
-## Limits
-The public Gamma discovery currently fetches the first 500 active events ordered by 24-hour volume. Public API coverage and live-status metadata may be incomplete. No orders are placed, and no private API credentials are needed for this read-only market-data display.
+## Known limitations
+Gamma live-status metadata and sports naming can vary. A zero-result response means the current discovery query did not identify matching events; it is not proof that no real-world games are underway. The public API and upstream availability can affect discovery latency and coverage.
