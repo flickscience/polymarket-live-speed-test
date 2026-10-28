@@ -49,7 +49,7 @@ async function fetchLiveEvents(sport) {
     const url=new URL("/events",GAMMA);
     for(const [k,v] of Object.entries({
       active:"true",closed:"false",live:"true",limit:String(pageSize),
-      offset:String(offset),order:"volume24hr",ascending:"false"
+      offset:String(offset),order:"volume_24hr",ascending:"false"
     })) url.searchParams.set(k,v);
     const response=await fetch(url,{signal:AbortSignal.timeout(8000),headers:{accept:"application/json"}});
     if(!response.ok) throw new Error("Gamma API HTTP "+response.status);
