@@ -3,7 +3,7 @@ import express from "express";
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const GAMMA = "https://gamma-api.polymarket.com";
-const TIMEOUT_MS = 12000;
+const TIMEOUT_MS = 8000;
 
 app.use(express.static("public"));
 app.get("/api/health", (_req,res) => res.json({ok:true,now:Date.now()}));
@@ -42,7 +42,7 @@ function normalizeEvent(e) {
   };
 }
 async function fetchLiveEvents(sport) {
-  const pageSize=100;
+  const pageSize=500;
   // Ask Gamma for live events directly; fetching every active event page serially
   // can take minutes and repeatedly hit the upstream timeout.
   async function fetchPage(offset) {
@@ -57,18 +57,9 @@ async function fetchLiveEvents(sport) {
     if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
     return data;
   }
-  // Fetch the first page first; most live match dashboards need only this page.
-  const first=await fetchPage(0);
-  const all=[...first];
-  // If Gamma reports a full page, fetch two more pages concurrently rather than
-  // serially blocking the endpoint on up to ten separate requests.
-  if(first.length===pageSize) {
-    const extra=await Promise.allSettled([fetchPage(100),fetchPage(200)]);
-    for(const result of extra) {
-      if(result.status==="fulfilled") all.push(...result.value);
-      else console.warn("[events] additional Gamma page unavailable: "+String(result.reason?.message||result.reason));
-    }
-  }
+  // Gamma documents a maximum page size of 500. One filtered request minimizes
+  // discovery latency and avoids serial pagination on every sport tap.
+  const all=await fetchPage(0);
   const seen=new Set();
   return all.filter(e=>{
     const id=String(e?.id||e?.slug||"");if(!id||seen.has(id))return false;seen.add(id);
@@ -85,7 +76,7 @@ app.get("/api/events",async(req,res)=>{
   try{
     const events=await fetchLiveEvents(sport);
     console.log("[events] sport="+sport+" count="+events.length+" durationMs="+(Date.now()-started));
-    res.set("Cache-Control","no-store").json({sport,events,liveCount:events.length,checkedAt:Date.now(),source:"Gamma live events, paginated"});
+    res.set("Cache-Control","no-store").json({sport,events,liveCount:events.length,checkedAt:Date.now(),source:"Gamma live events, single-page 500 cap"});
   }catch(error){
     const detail=error?.name==="TimeoutError"||error?.name==="AbortError"?"Gamma API timed out after "+TIMEOUT_MS+"ms":String(error?.message||error);
     console.error("[events] sport="+sport+" failed after "+(Date.now()-started)+"ms: "+detail);
