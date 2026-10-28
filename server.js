@@ -42,24 +42,39 @@ function normalizeEvent(e) {
   };
 }
 async function fetchLiveEvents(sport) {
-  const all=[];
   const pageSize=100;
-  // Paginate active events so cricket results aren't limited to the first 100 by volume.
-  for(let offset=0;offset<1000;offset+=pageSize){
+  // Ask Gamma for live events directly; fetching every active event page serially
+  // can take minutes and repeatedly hit the upstream timeout.
+  async function fetchPage(offset) {
     const url=new URL("/events",GAMMA);
-    for(const [k,v] of Object.entries({active:"true",closed:"false",limit:String(pageSize),offset:String(offset),order:"volume24hr",ascending:"false"})) url.searchParams.set(k,v);
-    const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
+    for(const [k,v] of Object.entries({
+      active:"true",closed:"false",live:"true",limit:String(pageSize),
+      offset:String(offset),order:"volume24hr",ascending:"false"
+    })) url.searchParams.set(k,v);
+    const response=await fetch(url,{signal:AbortSignal.timeout(8000),headers:{accept:"application/json"}});
     if(!response.ok) throw new Error("Gamma API HTTP "+response.status);
-    const data=await response.json();if(!Array.isArray(data))throw new Error("Gamma API returned unexpected response");
-    all.push(...data);
-    if(data.length<pageSize)break;
+    const data=await response.json();
+    if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
+    return data;
+  }
+  // Fetch the first page first; most live match dashboards need only this page.
+  const first=await fetchPage(0);
+  const all=[...first];
+  // If Gamma reports a full page, fetch two more pages concurrently rather than
+  // serially blocking the endpoint on up to ten separate requests.
+  if(first.length===pageSize) {
+    const extra=await Promise.allSettled([fetchPage(100),fetchPage(200)]);
+    for(const result of extra) {
+      if(result.status==="fulfilled") all.push(...result.value);
+      else console.warn("[events] additional Gamma page unavailable: "+String(result.reason?.message||result.reason));
+    }
   }
   const seen=new Set();
   return all.filter(e=>{
     const id=String(e?.id||e?.slug||"");if(!id||seen.has(id))return false;seen.add(id);
     const title=String(e.title||"").trim();
-    const isChildMarket=/\s-\s*(more markets|exact score|correct score|half.?time result|halftime result|first half|player props|corners|cards)\s*$/i.test(title);
-    const isHeadToHead=/\b(vs\.?|v\.?|versus)\b/i.test(title);
+    const isChildMarket=/\\s-\\s*(more markets|exact score|correct score|half.?time result|halftime result|first half|player props|corners|cards)\\s*$/i.test(title);
+    const isHeadToHead=/\\b(vs\\.?|v\\.?|versus)\\b/i.test(title);
     return (e.live===true||String(e.live).toLowerCase()==="true")&&e.closed!==true&&e.active!==false&&!isChildMarket&&(sport==="cricket"||isHeadToHead)&&isSport(e,sport);
   }).map(normalizeEvent).filter(e=>e.markets.length);
 }
