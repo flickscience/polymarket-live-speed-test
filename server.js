@@ -45,7 +45,7 @@ function normalizeMarket(m) {
   };
 }
 function eventTeams(title) {
-  return String(title||"").replace(/^.*?:\\s*/,"").split(/\\s+(?:vs\\.?|v\\.?|versus)\\s+/i).map(x=>x.trim()).filter(Boolean);
+  return String(title||"").replace(/^.*?:\s*/,"").split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map(x=>x.trim()).filter(Boolean);
 }
 function isMoneylineMarket(m,event) {
   const q=[m.question,m.groupItemTitle,m.slug,m.marketMetadata?.opticOddsSelection].filter(Boolean).join(" ").toLowerCase();
@@ -53,9 +53,9 @@ function isMoneylineMarket(m,event) {
   const teams=eventTeams(event.title).map(x=>x.toLowerCase().replace(/[^a-z0-9]+/g," ").trim());
   const qn=" "+q.replace(/[^a-z0-9]+/g," ").trim()+" ";
   const teamOutcomeCount=teams.length===2?teams.filter(t=>outcomes.some(o=>o.replace(/[^a-z0-9]+/g," ").trim()===t)).length:0;
-  const hasWinnerLanguage=/\\b(moneyline|match winner|match result|to win|win the match|winner)\\b/.test(q);
+  const hasWinnerLanguage=/\b(moneyline|match winner|match result|to win|win the match|winner)\b/.test(q);
   const namesTeam=teams.some(t=>t&&qn.includes(" "+t+" "));
-  const excluded=/\\b(over|under|total|handicap|spread|correct score|exact score|both teams|half.?time|first half|corners|cards|aces|sets|games|map|round|player prop|innings|wickets|run line|run total)\\b/.test(q);
+  const excluded=/\b(over|under|total|handicap|spread|correct score|exact score|both teams|half.?time|first half|corners|cards|aces|sets|games|map|round|player prop|innings|wickets|run line|run total)\b/.test(q);
   return !excluded && (teamOutcomeCount===2 || (hasWinnerLanguage&&namesTeam));
 }
 function normalizeEvent(e) {
