@@ -42,24 +42,35 @@ function normalizeEvent(e) {
   };
 }
 async function fetchLiveEvents(sport) {
-  const pageSize=500;
-  // Ask Gamma for live events directly; fetching every active event page serially
-  // can take minutes and repeatedly hit the upstream timeout.
+  // /events supports active/closed/order/limit/offset. Do not send live=true:
+  // that filter is not accepted consistently by Gamma's events endpoint (422).
+  // Keep pages small and parallel so live events are not buried beyond page one.
+  const pageSize=100;
   async function fetchPage(offset) {
     const url=new URL("/events",GAMMA);
     for(const [k,v] of Object.entries({
-      active:"true",closed:"false",live:"true",limit:String(pageSize),
+      active:"true",closed:"false",limit:String(pageSize),
       offset:String(offset),order:"volume_24hr",ascending:"false"
     })) url.searchParams.set(k,v);
-    const response=await fetch(url,{signal:AbortSignal.timeout(8000),headers:{accept:"application/json"}});
-    if(!response.ok) throw new Error("Gamma API HTTP "+response.status);
+    const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
+    if(!response.ok) {
+      const body=(await response.text()).slice(0,300);
+      throw new Error("Gamma API HTTP "+response.status+(body?": "+body:""));
+    }
     const data=await response.json();
     if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
     return data;
   }
-  // Gamma documents a maximum page size of 500. One filtered request minimizes
-  // discovery latency and avoids serial pagination on every sport tap.
-  const all=await fetchPage(0);
+  const pages=await Promise.allSettled([0,100,200,300,400].map(fetchPage));
+  const all=[];
+  const failures=[];
+  for(let i=0;i<pages.length;i++){
+    const p=pages[i];
+    if(p.status==="fulfilled") all.push(...p.value);
+    else failures.push("offset "+(i*pageSize)+": "+String(p.reason?.message||p.reason));
+  }
+  if(!all.length) throw new Error(failures.join("; ")||"Gamma returned no event records");
+  if(failures.length) console.warn("[events] partial Gamma pages: "+failures.join(" | "));
   const seen=new Set();
   return all.filter(e=>{
     const id=String(e?.id||e?.slug||"");if(!id||seen.has(id))return false;seen.add(id);
