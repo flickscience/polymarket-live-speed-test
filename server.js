@@ -19,9 +19,11 @@ function eventText(e) {
 }
 function isSport(e,sport) {
   const t=eventText(e);
-  if(sport==="soccer") return /soccer|football|premier league|epl|la liga|champions league|serie a|bundesliga|mls|uefa|fa cup|liga mx|copa/.test(t);
-  if(sport==="cricket") return /cricket|\bipl\b|\bt20\b|\bodi\b|test match|big bash|ashes|ranji|county championship|women|\btest\b|one day cup|premier cup|premier league|super league|contintent cup|continental cup|world cup|sub regional qualifier|tour of|vs\.?|versus/.test(t);
-  if(sport==="tennis") return /tennis|atp|wta|challenger|wimbledon|roland garros|us open|australian open|grand slam/.test(t);
+  const tags=arr(e.tags).map(x=>String(typeof x==="string"?x:(x?.slug||x?.label||"")).toLowerCase()).join(" ");
+  const source=t+" "+tags+" "+String(e.slug||"").toLowerCase();
+  if(sport==="cricket") return /cricket|\\bipl\\b|\\bt20\\b|\\bodi\\b|test cricket|test match|big bash|ashes|ranji|county championship|one day cup|premier cup|super league|cricket world cup|icc|indian premier league|pakistan super league|caribbean premier league|international league t20|bangladesh premier league|big bash league/.test(source);
+  if(sport==="tennis") return /tennis|\\batp\\b|\\bwta\\b|challenger|wimbledon|roland garros|us open|australian open|grand slam/.test(source);
+  if(sport==="soccer") return /soccer|football|premier league|\\bepl\\b|la liga|champions league|serie a|bundesliga|\\bmls\\b|uefa|fa cup|liga mx|copa/.test(source) && !/cricket|\\bipl\\b|\\bt20\\b|\\bodi\\b|big bash|ashes/.test(source);
   return false;
 }
 function normalizeMarket(m) {
@@ -59,24 +61,29 @@ function normalizeEvent(e) {
   };
 }
 async function fetchLiveEvents(sport) {
-  // Ask Gamma for live events and require an explicit live flag. Scheduled matches
-  // are not treated as live based only on start/end times.
-  const url=new URL("/events",GAMMA);
-  for(const [k,v] of Object.entries({active:"true",closed:"false",live:"true",limit:"500",offset:"0"})) url.searchParams.set(k,v);
-  const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
-  if(!response.ok) {
-    const body=(await response.text()).slice(0,300);
-    throw new Error("Gamma API HTTP "+response.status+(body?": "+body:""));
+  // Use documented active/closed filters and paginate; don't rely on an undocumented
+  // live query parameter. Only records explicitly marked live are shown.
+  const records=[];
+  for(let offset=0;offset<2000;offset+=500) {
+    const url=new URL("/events",GAMMA);
+    for(const [k,v] of Object.entries({active:"true",closed:"false",limit:"500",offset:String(offset)})) url.searchParams.set(k,v);
+    const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
+    if(!response.ok) {
+      const body=(await response.text()).slice(0,300);
+      throw new Error("Gamma API HTTP "+response.status+(body?": "+body:""));
+    }
+    const data=await response.json();
+    if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
+    records.push(...data);
+    if(data.length<500) break;
   }
-  const data=await response.json();
-  if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
   const seen=new Set();
-  const events=data.filter(e=>{
+  const events=records.filter(e=>{
     const id=String(e?.id||e?.slug||""); if(!id||seen.has(id)) return false; seen.add(id);
     const explicitLive=e.live===true||String(e.live).toLowerCase()==="true";
     return explicitLive&&e.closed!==true&&e.active!==false&&isSport(e,sport);
   }).map(normalizeEvent).filter(e=>e.markets.length);
-  console.log("[events] sport="+sport+" gammaLiveRecords="+data.length+" liveMoneylineMatches="+events.length);
+  console.log("[events] sport="+sport+" gammaRecords="+records.length+" liveMoneylineMatches="+events.length);
   return events;
 }
 app.get("/api/events",async(req,res)=>{
