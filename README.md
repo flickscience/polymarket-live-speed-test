@@ -11,7 +11,7 @@ npm start
 Open `http://localhost:3000`.
 
 ## Data sources and latency
-- Gamma API discovers active, non-closed events and their market/token metadata. Discovery requests ask for live events, use the documented 500-item page limit, and filter the returned event records to `live=true`.
+- Gamma API discovers active, non-closed events and their market/token metadata. It requests one 500-item page without the rejected `order`/`ascending` parameters, then filters returned records to `live=true`; discovery coverage is limited to that page.
 - The selected match uses one public CLOB market WebSocket for its outcome tokens. The socket closes when leaving the match or choosing another match.
 - The dashboard is read-only and never places orders.
 - Market WebSocket updates are the live price path. The event list is a discovery snapshot and currently refreshes when a sport is selected; it does not poll continuously in the background.
