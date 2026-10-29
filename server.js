@@ -42,15 +42,12 @@ function normalizeEvent(e) {
   };
 }
 async function fetchLiveEvents(sport) {
-  // Gamma rejects order/ascending on this endpoint (HTTP 422).
-  // Fetch one maximum-size page: fewer requests and no invalid sort parameters.
-  const pageSize=500;
+  // Gamma's general event schema does not consistently expose event.live.
+  // Scan multiple pages and use the event time window when the live flag is absent.
+  const pageSize=500, maxPages=10;
   async function fetchPage(offset) {
     const url=new URL("/events",GAMMA);
-    for(const [k,v] of Object.entries({
-      active:"true",closed:"false",limit:String(pageSize),
-      offset:String(offset)
-    })) url.searchParams.set(k,v);
+    for(const [k,v] of Object.entries({active:"true",closed:"false",limit:String(pageSize),offset:String(offset)})) url.searchParams.set(k,v);
     const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
     if(!response.ok) {
       const body=(await response.text()).slice(0,300);
@@ -60,24 +57,29 @@ async function fetchLiveEvents(sport) {
     if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
     return data;
   }
-  const pages=await Promise.allSettled([0].map(fetchPage));
-  const all=[];
-  const failures=[];
-  for(let i=0;i<pages.length;i++){
+  const pages=await Promise.allSettled(Array.from({length:maxPages},(_,i)=>fetchPage(i*pageSize)));
+  const all=[], failures=[];
+  for(let i=0;i<pages.length;i++) {
     const p=pages[i];
     if(p.status==="fulfilled") all.push(...p.value);
     else failures.push("offset "+(i*pageSize)+": "+String(p.reason?.message||p.reason));
   }
   if(!all.length) throw new Error(failures.join("; ")||"Gamma returned no event records");
   if(failures.length) console.warn("[events] partial Gamma pages: "+failures.join(" | "));
-  const seen=new Set();
-  return all.filter(e=>{
-    const id=String(e?.id||e?.slug||"");if(!id||seen.has(id))return false;seen.add(id);
+  const now=Date.now(), seen=new Set();
+  const candidates=all.filter(e=>{
+    const id=String(e?.id||e?.slug||""); if(!id||seen.has(id)) return false; seen.add(id);
     const title=String(e.title||"").trim();
     const isChildMarket=/\s-\s*(more markets|exact score|correct score|half.?time result|halftime result|first half|player props|corners|cards)\s*$/i.test(title);
     const isHeadToHead=/\b(vs\.?|v\.?|versus)\b/i.test(title);
-    return (e.live===true||String(e.live).toLowerCase()==="true")&&e.closed!==true&&e.active!==false&&!isChildMarket&&(sport==="cricket"||isHeadToHead)&&isSport(e,sport);
-  }).map(normalizeEvent).filter(e=>e.markets.length);
+    const explicitLive=e.live===true||String(e.live).toLowerCase()==="true";
+    const start=Date.parse(e.startDate||e.startTime||"");
+    const end=Date.parse(e.endDate||e.endTime||"");
+    const inTimeWindow=Number.isFinite(start)&&Number.isFinite(end)&&start<=now&&end>=now;
+    return (explicitLive||inTimeWindow)&&e.closed!==true&&e.active!==false&&!isChildMarket&&(sport==="cricket"||isHeadToHead)&&isSport(e,sport);
+  });
+  console.log("[events] sport="+sport+" scanned="+all.length+" matchingLiveCandidates="+candidates.length);
+  return candidates.map(normalizeEvent).filter(e=>e.markets.length);
 }
 app.get("/api/events",async(req,res)=>{
   const sport=String(req.query.sport||"soccer").toLowerCase();
