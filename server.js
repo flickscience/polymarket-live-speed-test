@@ -34,52 +34,60 @@ function normalizeMarket(m) {
     outcomes:outcomes.map((label,i)=>({label:String(label),tokenId:ids[i]?String(ids[i]):""})).filter(o=>o.tokenId)
   };
 }
+function normalizeMarket(m) {
+  const outcomes=arr(m.outcomes), ids=arr(m.clobTokenIds ?? m.clob_token_ids);
+  return {
+    id:String(m.id||m.conditionId||m.slug||""),
+    question:String(m.question||m.groupItemTitle||m.slug||""),
+    selection:String(m.marketMetadata?.opticOddsSelection||m.groupItemTitle||""),
+    slug:String(m.slug||""),
+    outcomes:outcomes.map((label,i)=>({label:String(label),tokenId:ids[i]?String(ids[i]):""})).filter(o=>o.tokenId)
+  };
+}
+function eventTeams(title) {
+  return String(title||"").replace(/^.*?:\\s*/,"").split(/\\s+(?:vs\\.?|v\\.?|versus)\\s+/i).map(x=>x.trim()).filter(Boolean);
+}
+function isMoneylineMarket(m,event) {
+  const q=[m.question,m.groupItemTitle,m.slug,m.marketMetadata?.opticOddsSelection].filter(Boolean).join(" ").toLowerCase();
+  const outcomes=arr(m.outcomes).map(x=>String(x?.label??x).trim().toLowerCase());
+  const teams=eventTeams(event.title).map(x=>x.toLowerCase().replace(/[^a-z0-9]+/g," ").trim());
+  const qn=" "+q.replace(/[^a-z0-9]+/g," ").trim()+" ";
+  const teamOutcomeCount=teams.length===2?teams.filter(t=>outcomes.some(o=>o.replace(/[^a-z0-9]+/g," ").trim()===t)).length:0;
+  const hasWinnerLanguage=/\\b(moneyline|match winner|match result|to win|win the match|winner)\\b/.test(q);
+  const namesTeam=teams.some(t=>t&&qn.includes(" "+t+" "));
+  const excluded=/\\b(over|under|total|handicap|spread|correct score|exact score|both teams|half.?time|first half|corners|cards|aces|sets|games|map|round|player prop|innings|wickets|run line|run total)\\b/.test(q);
+  return !excluded && (teamOutcomeCount===2 || (hasWinnerLanguage&&namesTeam));
+}
 function normalizeEvent(e) {
+  const markets=arr(e.markets)
+    .filter(m=>m&&m.active!==false&&m.closed!==true&&isMoneylineMarket(m,e))
+    .map(normalizeMarket).filter(m=>m.outcomes.length);
   return {
     id:String(e.id||e.slug||""), title:String(e.title||e.slug||"Match"),
     slug:String(e.slug||""), live:e.live===true||String(e.live).toLowerCase()==="true",
-    markets:arr(e.markets).filter(m=>m&&m.active!==false&&m.closed!==true).map(normalizeMarket).filter(m=>m.outcomes.length)
+    markets
   };
 }
 async function fetchLiveEvents(sport) {
-  // Gamma's general event schema does not consistently expose event.live.
-  // Scan multiple pages and use the event time window when the live flag is absent.
-  const pageSize=500, maxPages=10;
-  async function fetchPage(offset) {
-    const url=new URL("/events",GAMMA);
-    for(const [k,v] of Object.entries({active:"true",closed:"false",limit:String(pageSize),offset:String(offset)})) url.searchParams.set(k,v);
-    const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
-    if(!response.ok) {
-      const body=(await response.text()).slice(0,300);
-      throw new Error("Gamma API HTTP "+response.status+(body?": "+body:""));
-    }
-    const data=await response.json();
-    if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
-    return data;
+  // Ask Gamma for live events and require an explicit live flag. Scheduled matches
+  // are not treated as live based only on start/end times.
+  const url=new URL("/events",GAMMA);
+  for(const [k,v] of Object.entries({active:"true",closed:"false",live:"true",limit:"500",offset:"0"})) url.searchParams.set(k,v);
+  const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
+  if(!response.ok) {
+    const body=(await response.text()).slice(0,300);
+    throw new Error("Gamma API HTTP "+response.status+(body?": "+body:""));
   }
-  const pages=await Promise.allSettled(Array.from({length:maxPages},(_,i)=>fetchPage(i*pageSize)));
-  const all=[], failures=[];
-  for(let i=0;i<pages.length;i++) {
-    const p=pages[i];
-    if(p.status==="fulfilled") all.push(...p.value);
-    else failures.push("offset "+(i*pageSize)+": "+String(p.reason?.message||p.reason));
-  }
-  if(!all.length) throw new Error(failures.join("; ")||"Gamma returned no event records");
-  if(failures.length) console.warn("[events] partial Gamma pages: "+failures.join(" | "));
-  const now=Date.now(), seen=new Set();
-  const candidates=all.filter(e=>{
+  const data=await response.json();
+  if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
+  const seen=new Set();
+  const events=data.filter(e=>{
     const id=String(e?.id||e?.slug||""); if(!id||seen.has(id)) return false; seen.add(id);
-    const title=String(e.title||"").trim();
-    const isChildMarket=/\s-\s*(more markets|exact score|correct score|half.?time result|halftime result|first half|player props|corners|cards)\s*$/i.test(title);
-    const isHeadToHead=/\b(vs\.?|v\.?|versus)\b/i.test(title);
     const explicitLive=e.live===true||String(e.live).toLowerCase()==="true";
-    const start=Date.parse(e.startDate||e.startTime||"");
-    const end=Date.parse(e.endDate||e.endTime||"");
-    const inTimeWindow=Number.isFinite(start)&&Number.isFinite(end)&&start<=now&&end>=now;
-    return (explicitLive||inTimeWindow)&&e.closed!==true&&e.active!==false&&!isChildMarket&&(sport==="cricket"||isHeadToHead)&&isSport(e,sport);
-  });
-  console.log("[events] sport="+sport+" scanned="+all.length+" matchingLiveCandidates="+candidates.length);
-  return candidates.map(normalizeEvent).filter(e=>e.markets.length);
+    return explicitLive&&e.closed!==true&&e.active!==false&&isSport(e,sport);
+  }).map(normalizeEvent).filter(e=>e.markets.length);
+  console.log("[events] sport="+sport+" gammaLiveRecords="+data.length+" liveMoneylineMatches="+events.length);
+  return events;
 }
 app.get("/api/events",async(req,res)=>{
   const sport=String(req.query.sport||"soccer").toLowerCase();
