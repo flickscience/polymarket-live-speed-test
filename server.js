@@ -42,15 +42,14 @@ function normalizeEvent(e) {
   };
 }
 async function fetchLiveEvents(sport) {
-  // /events supports active/closed/order/limit/offset. Do not send live=true:
-  // that filter is not accepted consistently by Gamma's events endpoint (422).
-  // Keep pages small and parallel so live events are not buried beyond page one.
-  const pageSize=100;
+  // Gamma rejects order/ascending on this endpoint (HTTP 422).
+  // Fetch one maximum-size page: fewer requests and no invalid sort parameters.
+  const pageSize=500;
   async function fetchPage(offset) {
     const url=new URL("/events",GAMMA);
     for(const [k,v] of Object.entries({
       active:"true",closed:"false",limit:String(pageSize),
-      offset:String(offset),order:"volume_24hr",ascending:"false"
+      offset:String(offset)
     })) url.searchParams.set(k,v);
     const response=await fetch(url,{signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});
     if(!response.ok) {
@@ -61,7 +60,7 @@ async function fetchLiveEvents(sport) {
     if(!Array.isArray(data)) throw new Error("Gamma API returned unexpected response");
     return data;
   }
-  const pages=await Promise.allSettled([0,100,200,300,400].map(fetchPage));
+  const pages=await Promise.allSettled([0].map(fetchPage));
   const all=[];
   const failures=[];
   for(let i=0;i<pages.length;i++){
@@ -87,7 +86,7 @@ app.get("/api/events",async(req,res)=>{
   try{
     const events=await fetchLiveEvents(sport);
     console.log("[events] sport="+sport+" count="+events.length+" durationMs="+(Date.now()-started));
-    res.set("Cache-Control","no-store").json({sport,events,liveCount:events.length,checkedAt:Date.now(),source:"Gamma live events, single-page 500 cap"});
+    res.set("Cache-Control","no-store").json({sport,events,liveCount:events.length,checkedAt:Date.now(),source:"Gamma live events, one 500-event discovery page"});
   }catch(error){
     const detail=error?.name==="TimeoutError"||error?.name==="AbortError"?"Gamma API timed out after "+TIMEOUT_MS+"ms":String(error?.message||error);
     console.error("[events] sport="+sport+" failed after "+(Date.now()-started)+"ms: "+detail);
