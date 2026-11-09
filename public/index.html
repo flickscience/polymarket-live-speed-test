@@ -21,35 +21,33 @@ function closeMarketSocket(){if(state.heartbeat){clearInterval(state.heartbeat);
 function showMatches(){closeMarketSocket();$("odds-view").classList.add("hidden");$("empty-view").classList.add("hidden");$("matches-view").classList.remove("hidden")}
 function marketLabel(m,event){let q=String(m.question||m.slug||"").trim();q=q.replace(/^will\s+/i,"").replace(/\s+(win|to win|win the match)\??$/i,"").replace(/\?$/,"").trim();if(!q||q.toLowerCase()===String(event.title||"").toLowerCase())q=String(m.slug||q||"Outcome");return q}
 function getRows(event){
- const markets=arr(event.markets), rows=[], seen=new Set();
- // Use the two competitors in the event title as the source of truth.
+ const markets=arr(event.markets), rows=[];
  const title=String(event.title||"");
- const match=title.match(/(.+?)\\s+(?:vs\\.?|versus|v\\.)\\s+(.+)/i);
- const teams=match?match.slice(1,3).map(x=>x.replace(/^.*?:\\s*/,"").trim()):[];
- if(teams.length!==2||!teams.every(Boolean))return rows;
+ const match=title.match(/(.+?)\s+(?:vs\.?|versus|v\.?)\s+(.+)/i);
+ if(!match)return rows;
+ const teams=match.slice(1,3).map(x=>x.replace(/^.*?:\s*/,"").trim());
  const norm=s=>String(s||"").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g," ").trim();
- const teamKeys=teams.map(norm);
+ const keys=teams.map(norm);
  const isYesNo=outs=>outs.some(o=>/^yes$/i.test(String(o.label||"").trim()))&&outs.some(o=>/^no$/i.test(String(o.label||"").trim()));
- // First accept an explicit two-outcome market whose outcomes match both teams.
+ // Standard two-outcome winner market: map outcomes to the event's two competitors.
  for(const m of markets){
-  const outs=arr(m.outcomes).filter(o=>o.tokenId);
-  if(outs.length===2&&!isYesNo(outs)){
-   const mapped=teamKeys.map(k=>outs.find(o=>norm(o.label)===k||k.includes(norm(o.label))||norm(o.label).includes(k)));
-   if(mapped.every(Boolean)&&mapped[0].tokenId!==mapped[1].tokenId){
-    mapped.forEach((o,i)=>{rows[i]={label:teams[i],tokenId:String(o.tokenId),market:m}});
-    break;
-   }
+  const outs=arr(m.outcomes).filter(o=>o&&o.tokenId);
+  if(outs.length!==2||isYesNo(outs))continue;
+  const mapped=keys.map(k=>outs.find(o=>norm(o.label)===k));
+  if(mapped.every(Boolean)&&mapped[0].tokenId!==mapped[1].tokenId){
+   return mapped.map((o,i)=>({label:teams[i],tokenId:String(o.tokenId),market:m}));
   }
  }
- if(rows.length===2&&rows.every(Boolean))return rows;
- rows.length=0;
- // Otherwise accept one Yes/No market per competitor, but only when its
- // question/selection explicitly names that competitor. This excludes props.
+ // Yes/No structure: accept only a market explicitly naming one competitor
+ // and clearly framed as that competitor winning the match.
  for(const m of markets){
   const outs=arr(m.outcomes),yes=outs.find(o=>/^yes$/i.test(String(o.label||"").trim()));
   if(!yes||!yes.tokenId)continue;
-  const hay=norm([m.question,m.selection,m.slug].join(" "));
-  const idx=teamKeys.findIndex(k=>k&&hay.includes(k));
+  const question=String(m.question||"");
+  const hay=norm([question,m.selection,m.slug].join(" "));
+  const win=/\b(win|winner|moneyline|match result|to win)\b/i.test(question);
+  if(!win)continue;
+  const idx=keys.findIndex(k=>k&&hay.includes(k));
   if(idx<0||rows[idx])continue;
   rows[idx]={label:teams[idx],tokenId:String(yes.tokenId),market:m};
  }
